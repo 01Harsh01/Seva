@@ -86,6 +86,7 @@ function createSqlitePool() {
 function tryPostgres() {
   try {
     const { Pool } = require("pg");
+    const isRemote = Boolean(process.env.DATABASE_URL);
     const pgPool = new Pool({
       connectionString: process.env.DATABASE_URL || undefined,
       host: process.env.DB_HOST || "localhost",
@@ -93,7 +94,8 @@ function tryPostgres() {
       user: process.env.DB_USER || "postgres",
       password: process.env.DB_PASSWORD || "",
       database: process.env.DB_NAME || "homesync",
-      connectionTimeoutMillis: 3000,
+      connectionTimeoutMillis: 5000,
+      ssl: isRemote ? { rejectUnauthorized: false } : undefined,
     });
 
     pgPool.on("error", (err) => {
@@ -125,6 +127,46 @@ async function initDb() {
       realPool = pgPool;
       currentDbType = "postgres";
       console.log("[DB] Connected to PostgreSQL.");
+
+      // Auto-apply PostgreSQL migrations if users table is not yet created
+      try {
+        const tableCheck = await realPool.query("SELECT to_regclass('public.users') AS exists");
+        if (!tableCheck.rows[0]?.exists) {
+          console.log("[DB] PostgreSQL tables missing, auto-applying migrations...");
+          const candidateDirs = [
+            path.join(__dirname, "..", "..", "..", "database"),
+            path.join(__dirname, "..", "..", "database"),
+          ];
+          const dbDir = candidateDirs.find((d) => fs.existsSync(d));
+          if (dbDir) {
+            const extSql = path.join(dbDir, "migrations", "000_extensions.sql");
+            const initSql = path.join(dbDir, "migrations", "001_init.sql");
+            const seedSql = path.join(dbDir, "seed", "seed.sql");
+
+            if (fs.existsSync(extSql)) {
+              try {
+                await realPool.query(fs.readFileSync(extSql, "utf8"));
+              } catch (e) {
+                console.warn("[DB] Notice running extensions:", e.message);
+              }
+            }
+            if (fs.existsSync(initSql)) {
+              await realPool.query(fs.readFileSync(initSql, "utf8"));
+              console.log("[DB] PostgreSQL schema applied successfully.");
+            }
+            if (fs.existsSync(seedSql)) {
+              await realPool.query(fs.readFileSync(seedSql, "utf8"));
+              console.log("[DB] PostgreSQL seed data applied successfully.");
+            }
+          } else {
+            console.warn("[DB] Could not locate database directory to run migrations.");
+          }
+        } else {
+          console.log("[DB] PostgreSQL schema already exists.");
+        }
+      } catch (migErr) {
+        console.error("[DB] Migration error:", migErr.message);
+      }
       return;
     } catch (err) {
       console.warn(`[DB] PostgreSQL not available (${err.code || err.message}), falling back to SQLite.`);

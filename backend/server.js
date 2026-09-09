@@ -43,6 +43,10 @@ app.use(errorHandler);
 
 // ── Demo data seeding ──
 async function seedDemoData() {
+  // If PostgreSQL is in use, migrations and seed are handled via seed.sql
+  if (getDbType() === "postgres") {
+    return;
+  }
   try {
     const bcrypt = require("bcryptjs");
     const existing = await pool.query("SELECT id FROM users LIMIT 1");
