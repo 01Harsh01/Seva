@@ -1,13 +1,33 @@
 // ============================================================
-//  js/theme.js — dynamic per-category theming
-//  Sets CSS custom properties on :root so every themed element
-//  (hero, buttons, badges, cards, section headings) reads from
-//  the same source. Brand base (--coop-teal etc. in
-//  marketplace.css) stays as the fallback, so HomeSync still
-//  feels like one product underneath each category's accent.
+//  js/theme.js — dynamic per-category theming + Mode Switcher
+//  (Bright / Dark / Custom)
 // ============================================================
 
 const VARS = ["--cat-primary", "--cat-secondary", "--cat-accent", "--cat-gradient"];
+const THEME_MODE_KEY = "hs_theme_mode";
+
+export function getThemeMode() {
+  return localStorage.getItem(THEME_MODE_KEY) || "bright";
+}
+
+export function setThemeMode(mode) {
+  const valid = ["bright", "dark", "custom"];
+  const m = valid.includes(mode) ? mode : "bright";
+  localStorage.setItem(THEME_MODE_KEY, m);
+  document.documentElement.setAttribute("data-theme", m);
+  window.dispatchEvent(new CustomEvent("hs:theme-change", { detail: { mode: m } }));
+  return m;
+}
+
+export function initTheme() {
+  const current = getThemeMode();
+  document.documentElement.setAttribute("data-theme", current);
+}
+
+// Auto-run theme initialization
+if (typeof window !== "undefined") {
+  initTheme();
+}
 
 export function applyCategoryTheme(theme) {
   const root = document.documentElement.style;

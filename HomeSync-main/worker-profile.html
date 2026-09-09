@@ -19,6 +19,7 @@ import { getWorkerById, getCategory, getReviews } from "./js/store.js";
 import { getCategoryConfig } from "./js/categoryConfig.js";
 import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
 import { money, stars, verificationBadge, qs } from "./js/ui.js";
+import { openWorkerMessenger } from "./js/messenger.js";
 
 const worker = getWorkerById(qs("id"));
 const content = document.getElementById("content");
@@ -40,7 +41,10 @@ if (!worker) {
       <div style="text-align:right">
         <div style="font-size:1.5rem;font-weight:800">${money(worker.expectedRate)}</div>
         <div style="color:var(--muted);font-size:0.82rem">approx. per visit</div>
-        <a class="btn cat-btn-primary" style="margin-top:10px;color:var(--cat-accent, var(--coop-teal-dark))" href="${worker.verificationStatus === 'verified' ? 'booking.html?worker=' + worker.id : '#'}" ${worker.verificationStatus !== 'verified' ? 'aria-disabled="true" onclick="alert(\'This worker is still pending verification and cannot be booked yet.\'); return false;"' : ''}>Book Now</a>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button class="btn btn-ghost btn-sm" id="btn-profile-chat">💬 Contact</button>
+          <a class="btn cat-btn-primary" style="color:var(--cat-accent, var(--coop-teal-dark))" href="${worker.verificationStatus === 'verified' ? 'booking.html?worker=' + worker.id : '#'}" ${worker.verificationStatus !== 'verified' ? 'aria-disabled="true" onclick="alert(\'This worker is still pending verification and cannot be booked yet.\'); return false;"' : ''}>Book Now</a>
+        </div>
       </div>
     </div>
 
@@ -72,6 +76,10 @@ if (!worker) {
         </div>`).join("")}
     </div>
   `;
+
+  document.getElementById("btn-profile-chat")?.addEventListener("click", () => {
+    openWorkerMessenger(worker);
+  });
 }
 </script>
 </body>

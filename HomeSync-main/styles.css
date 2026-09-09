@@ -45,6 +45,62 @@
   --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ── Theme Modes: Bright (Light), Dark, Custom ── */
+[data-theme="bright"], [data-theme="light"] {
+  --bg:           #F8FAFC;
+  --bg2:          #F1F5F9;
+  --surface:      #FFFFFF;
+  --surface2:     #F8FAFC;
+  --surface3:     #E2E8F0;
+  --border:       rgba(0,0,0,0.08);
+  --border-strong:rgba(0,0,0,0.16);
+  --text:         #0F172A;
+  --muted:        #475569;
+  --subtle:       #64748B;
+  --accent:       #0F766E;
+  --header-bg:    rgba(255,255,255,0.85);
+  --glass-bg:     rgba(255,255,255,0.75);
+}
+
+[data-theme="dark"] {
+  --bg:           #090D16;
+  --bg2:          #0F172A;
+  --surface:      #151F32;
+  --surface2:     #1E293B;
+  --surface3:     #2B384E;
+  --border:       rgba(255,255,255,0.09);
+  --border-strong:rgba(255,255,255,0.18);
+  --text:         #F8FAFC;
+  --muted:        #94A3B8;
+  --subtle:       #64748B;
+  --accent:       #38BDF8;
+  --header-bg:    rgba(15,23,42,0.88);
+  --glass-bg:     rgba(21,31,50,0.82);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.45);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,0.55);
+}
+
+[data-theme="custom"] {
+  /* Warm Cooperative Amber & Emerald Luxe */
+  --bg:           #0C130E;
+  --bg2:          #131C15;
+  --surface:      #1A261D;
+  --surface2:     #223226;
+  --surface3:     #2E4233;
+  --border:       rgba(245,158,11,0.22);
+  --border-strong:rgba(245,158,11,0.38);
+  --text:         #FDF8EC;
+  --muted:        #C5CFC7;
+  --subtle:       #8A9A8D;
+  --accent:       #F59E0B;
+  --header-bg:    rgba(19,28,21,0.90);
+  --glass-bg:     rgba(26,38,29,0.84);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.5);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.55);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,0.65);
+}
+
 /* ── Animated background ── */
 body {
   font-family: var(--font);

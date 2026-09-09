@@ -162,6 +162,7 @@
 import "./js/ui.js";
 import { getBookings, getWorkers, getCategory, getLiveTrackingState, money, verificationBadge, qs } from "./js/store.js";
 import { getCategoryConfig } from "./js/categoryConfig.js";
+import { openWorkerMessenger } from "./js/messenger.js";
 
 // Find booking: from query param or fallback to the most recent active booking
 let bookingId = qs("booking");
@@ -302,11 +303,16 @@ document.getElementById("btn-speed-sim").addEventListener("click", () => {
 
 // Call / Message Handlers
 document.getElementById("btn-call").addEventListener("click", () => {
-  alert(`📞 Dialing ${tracking.workerName} (+91 ${tracking.workerPhone})...\n(In production, this connects via cooperative masked call routing).`);
+  openWorkerMessenger(
+    tracking.worker || { id: tracking.workerId, name: tracking.workerName, phone: tracking.workerPhone, category: tracking.category },
+    tracking.booking
+  );
 });
 document.getElementById("btn-msg").addEventListener("click", () => {
-  const msg = prompt(`Send a quick message to ${tracking.workerName}:`, "Please ring the bell at flat 302.");
-  if (msg) alert(`✓ Message sent to ${tracking.workerName}: "${msg}"`);
+  openWorkerMessenger(
+    tracking.worker || { id: tracking.workerId, name: tracking.workerName, phone: tracking.workerPhone, category: tracking.category },
+    tracking.booking
+  );
 });
 document.getElementById("btn-sos").addEventListener("click", () => {
   if (confirm("🚨 Send an emergency priority alert to the Cooperative Safety Team?")) {

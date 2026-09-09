@@ -112,8 +112,12 @@ function watchMutations() {
   mo.observe(document.body, { childList: true, subtree: true });
 }
 
+// Ensure exit class is cleared immediately upon script evaluation
+document.documentElement.classList.remove("hs-page-exit");
+
 function fadeInPage() {
   if (REDUCED) return;
+  document.documentElement.classList.remove("hs-page-exit");
   document.documentElement.classList.add("hs-page-enter");
   requestAnimationFrame(() => {
     document.documentElement.classList.add("hs-page-enter-active");
@@ -142,9 +146,31 @@ function wirePageExitTransition() {
 
     e.preventDefault();
     document.documentElement.classList.add("hs-page-exit");
+
+    // Safety fallback: in case navigation is cancelled or back button is pressed,
+    // automatically restore page visibility after 500ms
+    setTimeout(() => {
+      document.documentElement.classList.remove("hs-page-exit");
+    }, 500);
+
     setTimeout(() => { location.href = url.href; }, 180);
   });
 }
+
+// Fix bfcache (Back-Forward Cache): When returning to a page via browser Back button,
+// pageshow fires and we must immediately strip any exit styles and restore full opacity.
+window.addEventListener("pageshow", (e) => {
+  document.documentElement.classList.remove("hs-page-exit");
+  document.documentElement.classList.add("hs-page-enter-active");
+  scan(document);
+  document.querySelectorAll(".reveal:not(.in-view)").forEach(el => el.classList.add("in-view"));
+});
+
+window.addEventListener("popstate", () => {
+  document.documentElement.classList.remove("hs-page-exit");
+  document.documentElement.classList.add("hs-page-enter-active");
+  document.querySelectorAll(".reveal:not(.in-view)").forEach(el => el.classList.add("in-view"));
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   fadeInPage();
@@ -152,9 +178,9 @@ document.addEventListener("DOMContentLoaded", () => {
   scan(document);
   watchMutations();
 
-  // Safety net: if any reveal elements are still invisible after 3 seconds
-  // (IntersectionObserver timing edge case), force them visible.
+  // Safety net: force all reveal elements visible after 1.5 seconds
   setTimeout(() => {
+    document.documentElement.classList.remove("hs-page-exit");
     document.querySelectorAll(".reveal:not(.in-view)").forEach(el => el.classList.add("in-view"));
-  }, 3000);
+  }, 1500);
 });

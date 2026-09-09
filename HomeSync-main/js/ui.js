@@ -2,6 +2,7 @@
 //  js/ui.js — shared header/nav + small helpers
 // ============================================================
 import { currentUser, logout, getNotifications, seedDemoData } from "./store.js";
+import "./theme.js";
 import "./animate.js";
 import "./tilt.js";
 import "./parallax.js";
@@ -49,6 +50,13 @@ export function renderHeader(mountSelector = "#hs-header") {
           }).join("")}
         </nav>
         <div class="hs-header-actions">
+          <div class="hs-theme-switcher">
+            <div class="theme-toggle-pills" id="theme-pills">
+              <button class="theme-pill" data-mode="bright" title="Bright Daylight Mode">☀️ Bright</button>
+              <button class="theme-pill" data-mode="dark" title="Dark Mode">🌙 Dark</button>
+              <button class="theme-pill" data-mode="custom" title="Warm Cooperative Luxe">🎨 Custom</button>
+            </div>
+          </div>
           <div class="lang-switcher"></div>
           ${user ? `
             <button class="hs-bell" id="hs-bell" title="Notifications">🔔<span class="hs-bell-dot" id="hs-bell-dot" hidden></span></button>
@@ -75,6 +83,19 @@ export function renderHeader(mountSelector = "#hs-header") {
       alert(items.length ? items.map((n) => `• ${n.message}`).join("\n") : "No notifications yet.");
     });
   }
+
+  // Theme switcher pills
+  const pills = document.querySelectorAll("#theme-pills .theme-pill");
+  const currentMode = localStorage.getItem("hs_theme_mode") || "bright";
+  pills.forEach((btn) => {
+    if (btn.dataset.mode === currentMode) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      import("./theme.js").then((m) => {
+        m.setThemeMode(btn.dataset.mode);
+        pills.forEach((b) => b.classList.toggle("active", b === btn));
+      });
+    });
+  });
 
   import("./i18n.js").then((m) => m.initLangSwitcher());
 }
