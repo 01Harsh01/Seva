@@ -1,0 +1,570 @@
+/* ============================================================
+   HomeAgent — Minimal White Theme + Mixed Animations
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #F8F9FC;
+  --bg2:          #F0F2F8;
+  --surface:      #FFFFFF;
+  --surface2:     #F4F5FA;
+  --surface3:     #ECEEF6;
+  --border:       rgba(0,0,0,0.07);
+  --border-strong:rgba(0,0,0,0.13);
+  --text:         #0D0F1A;
+  --muted:        #6B7280;
+  --subtle:       #9CA3AF;
+
+  --accent:       #111827;
+  --accent-dim:   rgba(17,24,39,0.07);
+  --accent-dim2:  rgba(17,24,39,0.12);
+
+  --success:      #059669;
+  --success-dim:  rgba(5,150,105,0.10);
+  --warn:         #D97706;
+  --warn-dim:     rgba(217,119,6,0.10);
+  --danger:       #DC2626;
+  --danger-dim:   rgba(220,38,38,0.10);
+  --info:         #2563EB;
+  --info-dim:     rgba(37,99,235,0.10);
+
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg:    0 12px 40px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-glow:  0 0 0 3px rgba(17,24,39,0.08);
+
+  --radius:       10px;
+  --radius-lg:    14px;
+  --radius-xl:    20px;
+  --font:         'Inter', system-ui, sans-serif;
+  --sidebar-w:    220px;
+  --topbar-h:     56px;
+  --ease-bounce:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth:  cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Animated background ── */
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(37,99,235,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(5,150,105,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(217,119,6,0.03) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+  animation: bgShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes bgShift {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.6; transform: scale(1.05); }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+a { color: var(--info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: var(--font); cursor: pointer; border: none; outline: none; }
+img { display: block; max-width: 100%; }
+
+/* ============================================================
+   Layout Shell
+   ============================================================ */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  grid-template-areas: "sidebar topbar" "sidebar main";
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   Sidebar — with slide-in animation
+   ============================================================ */
+.sidebar {
+  grid-area: sidebar;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+  animation: slideInLeft 0.4s var(--ease-smooth) both;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(17,24,39,0.2);
+  transition: transform 0.3s var(--ease-bounce), box-shadow 0.3s;
+}
+.logo-icon:hover { transform: scale(1.1) rotate(-5deg); box-shadow: 0 4px 16px rgba(17,24,39,0.3); }
+.logo-icon svg { width: 18px; height: 18px; color: #fff; }
+.logo-text  { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.logo-badge { font-size: 10px; color: var(--muted); }
+
+.nav-section-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--subtle); padding: 16px 20px 6px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; margin: 1px 8px;
+  border-radius: var(--radius);
+  font-size: 13px; color: var(--muted);
+  text-decoration: none; font-weight: 400;
+  transition: all 0.2s var(--ease-smooth);
+  position: relative; overflow: hidden;
+}
+.nav-item::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--accent);
+  opacity: 0; border-radius: var(--radius);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.25s var(--ease-smooth), opacity 0.25s;
+}
+.nav-item:hover { color: var(--text); background: var(--surface2); transform: translateX(2px); text-decoration: none; }
+.nav-item.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(17,24,39,0.2);
+}
+.nav-item.active svg { opacity: 1; }
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.6; transition: opacity 0.2s; }
+.nav-item:hover svg { opacity: 1; }
+
+.nav-badge {
+  margin-left: auto;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 20px;
+  background: var(--danger-dim); color: var(--danger);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+.nav-badge.warn { background: var(--warn-dim); color: var(--warn); }
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.1); }
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px;
+}
+
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s var(--ease-bounce);
+}
+.user-card:hover { background: var(--surface2); transform: scale(1.02); }
+.user-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  object-fit: cover; border: 2px solid var(--border-strong); flex-shrink: 0;
+}
+.user-avatar-fallback {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.user-name  { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-email { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ============================================================
+   Topbar
+   ============================================================ */
+.topbar {
+  grid-area: topbar;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: var(--shadow-sm);
+  animation: slideDown 0.4s var(--ease-smooth) both;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.topbar-left  { display: flex; align-items: center; gap: 12px; }
+.page-title   { font-size: 15px; font-weight: 600; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+
+/* ============================================================
+   Main Content — staggered fade-in
+   ============================================================ */
+.main-content {
+  grid-area: main;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
+  animation: fadeInUp 0.5s var(--ease-smooth) 0.15s both;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Cards — floating hover effect
+   ============================================================ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.3s var(--ease-smooth), transform 0.3s var(--ease-smooth);
+  animation: cardAppear 0.4s var(--ease-smooth) both;
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+@keyframes cardAppear {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.card-title { font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* ============================================================
+   Metric Cards — bounce-in with stagger
+   ============================================================ */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.3s, transform 0.3s var(--ease-bounce);
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+.metric-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--info));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.4s var(--ease-smooth);
+}
+.metric-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px) scale(1.02); }
+.metric-card:hover::after { transform: scaleX(1); }
+.metric-card:nth-child(1) { animation: bounceIn 0.5s var(--ease-bounce) 0.1s both; }
+.metric-card:nth-child(2) { animation: bounceIn 0.5s var(--ease-bounce) 0.2s both; }
+.metric-card:nth-child(3) { animation: bounceIn 0.5s var(--ease-bounce) 0.3s both; }
+.metric-card:nth-child(4) { animation: bounceIn 0.5s var(--ease-bounce) 0.4s both; }
+
+@keyframes bounceIn {
+  0%   { opacity: 0; transform: scale(0.8) translateY(20px); }
+  60%  { opacity: 1; transform: scale(1.03) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.metric-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+.metric-value {
+  font-size: 28px; font-weight: 800; color: var(--text);
+  line-height: 1; letter-spacing: -0.03em;
+  transition: transform 0.2s var(--ease-bounce);
+}
+.metric-card:hover .metric-value { transform: scale(1.05); }
+.metric-sub { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.metric-sub.up   { color: var(--success); }
+.metric-sub.down { color: var(--danger); }
+
+/* ============================================================
+   Badges
+   ============================================================ */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  white-space: nowrap;
+  transition: transform 0.2s var(--ease-bounce);
+}
+.badge:hover { transform: scale(1.05); }
+.badge-success { background: var(--success-dim); color: var(--success); }
+.badge-warn    { background: var(--warn-dim);    color: var(--warn); }
+.badge-danger  { background: var(--danger-dim);  color: var(--danger); }
+.badge-info    { background: var(--info-dim);     color: var(--info); }
+.badge-muted   { background: var(--surface3);     color: var(--muted); }
+
+/* Animated pulse dot */
+.pulse-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; display: inline-block;
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* ============================================================
+   Buttons — with ripple + bounce
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 600;
+  transition: all 0.2s var(--ease-bounce);
+  position: relative; overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.3);
+  transform: scale(0); border-radius: 50%;
+  transition: transform 0.4s;
+}
+.btn:active::after { transform: scale(3); opacity: 0; transition: transform 0.4s, opacity 0.4s; }
+.btn:hover  { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.btn:active { transform: translateY(0) scale(0.97); }
+
+.btn-primary { background: var(--accent); color: #fff; border: none; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: #1F2937; }
+
+.btn-ghost {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--border-strong); }
+
+.btn-success { background: var(--success-dim); color: var(--success); border: 1px solid rgba(5,150,105,0.2); }
+.btn-success:hover { background: rgba(5,150,105,0.18); }
+.btn-danger  { background: var(--danger-dim);  color: var(--danger);  border: 1px solid rgba(220,38,38,0.2); }
+.btn-danger:hover  { background: rgba(220,38,38,0.18); }
+
+/* ============================================================
+   Stock bars — animated fill
+   ============================================================ */
+.stock-bar-wrap { width: 80px; }
+.stock-bar {
+  height: 5px; border-radius: 3px;
+  background: var(--surface3); overflow: hidden; margin-bottom: 3px;
+}
+.stock-fill {
+  height: 100%; border-radius: 3px;
+  animation: fillBar 1s var(--ease-smooth) both;
+  transition: width 0.5s var(--ease-smooth);
+}
+@keyframes fillBar {
+  from { width: 0 !important; }
+}
+.stock-ok       { background: linear-gradient(90deg, var(--success), #10B981); }
+.stock-low      { background: linear-gradient(90deg, var(--warn), #F59E0B); }
+.stock-critical { background: linear-gradient(90deg, var(--danger), #EF4444); animation: fillBar 1s var(--ease-smooth) both, criticalPulse 2s ease-in-out infinite 1s; }
+@keyframes criticalPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.stock-pct { font-size: 10px; color: var(--muted); text-align: right; }
+
+/* ============================================================
+   Pipeline bar — agent nodes
+   ============================================================ */
+.agent-icon {
+  transition: transform 0.3s var(--ease-bounce), box-shadow 0.3s;
+}
+.agent-icon:hover { transform: scale(1.15) translateY(-2px); }
+.agent-icon.active {
+  animation: agentActive 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+}
+@keyframes agentActive {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+  50%       { box-shadow: 0 0 0 8px rgba(37,99,235,0.08); }
+}
+.agent-icon.done {
+  animation: agentDone 0.5s var(--ease-bounce);
+}
+@keyframes agentDone {
+  0%   { transform: scale(0.8); }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ============================================================
+   Grid layouts
+   ============================================================ */
+.two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.three-col { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.divider   { border: none; border-top: 1px solid var(--border); }
+
+/* ============================================================
+   Toast notifications — slide in from bottom right
+   ============================================================ */
+#toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px;
+  z-index: 1000;
+}
+
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.4s var(--ease-bounce);
+  max-width: 320px;
+}
+.toast.success { border-left: 3px solid var(--success); }
+.toast.warn    { border-left: 3px solid var(--warn); }
+.toast.error   { border-left: 3px solid var(--danger); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* ============================================================
+   Skeleton loading shimmer
+   ============================================================ */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ============================================================
+   Floating particles (injected via JS)
+   ============================================================ */
+.particle {
+  position: fixed;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  pointer-events: none;
+  z-index: 0;
+  animation: floatParticle var(--dur, 15s) ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes floatParticle {
+  0%, 100% { transform: translate(0,0) scale(1); opacity: 0.3; }
+  25%       { transform: translate(var(--x1), var(--y1)) scale(1.2); opacity: 0.6; }
+  50%       { transform: translate(var(--x2), var(--y2)) scale(0.8); opacity: 0.4; }
+  75%       { transform: translate(var(--x3), var(--y3)) scale(1.1); opacity: 0.5; }
+}
+
+/* ============================================================
+   Page-entry animations for rows
+   ============================================================ */
+.item-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  transition: background 0.2s, transform 0.2s var(--ease-smooth);
+  animation: rowIn 0.3s var(--ease-smooth) both;
+}
+.item-row:last-child { border-bottom: none; }
+.item-row:hover {
+  background: var(--surface2);
+  transform: translateX(4px);
+  border-radius: var(--radius);
+  padding-left: 8px;
+}
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.item-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.3s var(--ease-bounce);
+}
+.item-icon:hover { transform: scale(1.2) rotate(5deg); }
+.item-icon svg  { width: 15px; height: 15px; }
+.item-info      { flex: 1; min-width: 0; }
+.item-name      { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-meta      { font-size: 11px; color: var(--muted); }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "topbar" "main";
+  }
+  .sidebar { display: none; }
+  .metrics-grid { grid-template-columns: repeat(2,1fr); }
+  .two-col, .three-col { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .main-content { padding: 16px; }
+}
+
+/* ============================================================
+   Number counter animation (triggered via JS)
+   ============================================================ */
+.count-up { display: inline-block; }

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payment — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section" style="max-width:520px">
+  <div class="card" id="pay-box"></div>
+</div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { getBookingById, recordPayment, updateBookingStatus, generateInvoice } from "./js/store.js";
+import { money, qs } from "./js/ui.js";
+
+const booking = getBookingById(qs("booking"));
+const box = document.getElementById("pay-box");
+if (!booking) { box.innerHTML = "Booking not found."; }
+else {
+  const fee = Math.round(booking.serviceCharge * 0.08);
+  const total = booking.serviceCharge + fee;
+
+  function renderChoice() {
+    box.innerHTML = `
+      <h2 style="font-weight:800;margin-bottom:6px">Complete Payment</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px">Booking with ${booking.workerName}</p>
+      <div class="invoice-row"><span>Service charge</span><span>${money(booking.serviceCharge)}</span></div>
+      <div class="invoice-row"><span>Cooperative fee (8%)</span><span>${money(fee)}</span></div>
+      <div class="invoice-row invoice-total"><span>Total</span><span>${money(total)}</span></div>
+      <p class="ai-note">This is a demo payment flow — no real gateway is called. In production, order creation and signature verification happen in a backend/serverless function; the Razorpay secret key is never placed in frontend code.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+        ${booking.paymentMethod === "cash"
+          ? `<button class="btn btn-primary btn-block" id="confirm-cash">Confirm — Pay Cash on Completion</button>`
+          : `<button class="btn btn-primary btn-block" id="pay-online">Pay ${money(total)} Online (Demo)</button>
+             <button class="btn btn-ghost btn-block" id="pay-fail">Simulate Payment Failure</button>`}
+      </div>`;
+
+    document.getElementById("confirm-cash")?.addEventListener("click", () => {
+      recordPayment({ bookingId: booking.id, amount: total, method: "cash", status: "pending" });
+      updateBookingStatus(booking.id, "requested");
+      location.href = `track.html?booking=${booking.id}`;
+    });
+    document.getElementById("pay-online")?.addEventListener("click", () => {
+      recordPayment({ bookingId: booking.id, amount: total, method: "online", status: "success" });
+      renderSuccess();
+    });
+    document.getElementById("pay-fail")?.addEventListener("click", () => {
+      recordPayment({ bookingId: booking.id, amount: total, method: "online", status: "failed" });
+      renderFailure();
+    });
+  }
+
+  function renderSuccess() {
+    generateInvoice(booking.id);
+    box.innerHTML = `
+      <div style="text-align:center">
+        <div style="font-size:2.5rem">✅</div>
+        <h2 style="font-weight:800;margin:10px 0">Booking & Payment Successful</h2>
+        <p style="color:var(--muted);margin-bottom:20px">Your booking request has been confirmed with <b>${booking.workerName}</b>. Live GPS telemetry and route tracking are active.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;max-width:320px;margin:0 auto">
+          <a class="btn btn-primary btn-block" href="track.html?booking=${booking.id}">📍 Track Worker Live & ETA</a>
+          <a class="btn btn-ghost btn-block" href="invoice.html?booking=${booking.id}">View Digital Invoice</a>
+          <a class="btn btn-ghost btn-block" href="customer-dashboard.html">Go to My Bookings</a>
+        </div>
+      </div>`;
+  }
+  function renderFailure() {
+    box.innerHTML = `
+      <div style="text-align:center">
+        <div style="font-size:2.5rem">❌</div>
+        <h2 style="font-weight:800;margin:10px 0">Payment Failed</h2>
+        <p style="color:var(--muted);margin-bottom:20px">Your payment could not be processed. No amount was deducted (demo mode).</p>
+        <button class="btn btn-primary" id="retry">Try Again</button>
+      </div>`;
+    document.getElementById("retry").addEventListener("click", renderChoice);
+  }
+  renderChoice();
+}
+</script>
+</body>
+</html>

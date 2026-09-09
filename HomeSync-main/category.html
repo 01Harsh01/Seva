@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Service Category — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+
+<!-- ============ HERO (fully data-driven) ============ -->
+<section class="cat-hero" id="cat-hero">
+  <div class="cat-hero-canvas" id="cat-hero-canvas" aria-hidden="true"></div>
+  <div class="container cat-hero-inner">
+    <span class="hero-badge glass-btn" style="margin-bottom:14px">✓ Verified · Fair Wages · Cooperative-owned</span>
+    <div class="cat-hero-icon" id="cat-icon"></div>
+    <h1 id="cat-title"></h1>
+    <p class="cat-tagline" id="cat-tagline"></p>
+    <p class="cat-desc" id="cat-desc"></p>
+    <div class="hero-actions">
+      <a class="btn cat-btn-primary" id="cat-cta-find">Find a worker</a>
+      <a class="btn cat-btn-ghost glass-btn" id="cat-cta-emergency">Emergency service</a>
+    </div>
+    <div class="cat-stats" id="cat-stats"></div>
+  </div>
+</section>
+
+<!-- Category switcher — horizontally scrollable on mobile -->
+<div class="container cat-switcher-wrap">
+  <div class="cat-switcher" id="cat-switcher"></div>
+</div>
+
+<!-- ============ AI Recommendation ============ -->
+<section class="container section" style="padding-top:8px">
+  <div class="card ai-card" id="ai-panel"></div>
+</section>
+
+<!-- ============ Services ============ -->
+<section class="section">
+  <div class="container">
+    <h2 class="section-title" id="services-title"></h2>
+    <div class="grid grid-3" id="services-grid"></div>
+  </div>
+</section>
+
+<!-- ============ Workers ============ -->
+<section class="section" style="background:var(--surface2)">
+  <div class="container">
+    <h2 class="section-title" id="workers-title"></h2>
+    <div class="filters-bar">
+      <button class="btn btn-ghost btn-sm" id="cat-locate">📍 Use my location</button>
+      <a class="btn btn-ghost btn-sm" id="cat-map-link" href="#">View on map</a>
+    </div>
+    <div class="grid grid-3" id="workers-grid"></div>
+  </div>
+</section>
+
+<!-- ============ Why choose us ============ -->
+<section class="section">
+  <div class="container">
+    <h2 class="section-title" id="features-title"></h2>
+    <div class="grid grid-4" id="features-grid"></div>
+  </div>
+</section>
+
+<!-- ============ Testimonials ============ -->
+<section class="section" style="background:var(--surface2)">
+  <div class="container">
+    <h2 class="section-title">What customers say</h2>
+    <div class="grid grid-3" id="testimonials-grid"></div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section">
+  <div class="container" style="max-width:760px">
+    <h2 class="section-title">Frequently asked questions</h2>
+    <div id="faq-list"></div>
+  </div>
+</section>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { CATEGORIES, findMatches, demandForecast } from "./js/store.js";
+import { getCategoryConfig, getActiveCategoryConfigs } from "./js/categoryConfig.js";
+import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
+import { mountCategoryScene } from "./js/scene3d.js";
+import { mascotBadgeHTML } from "./js/mascot.js";
+import { money, stars, verificationBadge, qs } from "./js/ui.js";
+
+let userLoc = null;
+let currentCategoryId = null;
+
+function skeletonAll() {
+  ["services-grid","workers-grid","features-grid","testimonials-grid"].forEach(id => {
+    document.getElementById(id).innerHTML = Array(3).fill('<div class="card skeleton-card"></div>').join("");
+  });
+  document.getElementById("faq-list").innerHTML = Array(3).fill('<div class="card skeleton-card" style="height:52px"></div>').join("");
+  document.getElementById("ai-panel").innerHTML = '<div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div>';
+}
+
+function renderSwitcher(activeId) {
+  const box = document.getElementById("cat-switcher");
+  box.innerHTML = getActiveCategoryConfigs().map(c => `
+    <a class="chip cat-chip ${c.id === activeId ? "selected" : ""}" href="category.html?category=${c.id}" style="display:inline-flex;align-items:center;gap:6px">
+      <span>${c.icon}</span> <span>${c.label}</span>
+    </a>
+  `).join("");
+}
+
+async function loadCategory(id) {
+  const cfg = getCategoryConfig(id);
+  if (!cfg || !cfg.active) {
+    document.getElementById("cat-title").textContent = "Category not available";
+    document.getElementById("cat-desc").textContent = "This service category doesn't exist or has been deactivated by the cooperative. Try another category below.";
+    skeletonAll();
+    document.querySelectorAll(".skeleton-card, .skeleton-line").forEach(el => el.remove());
+    renderSwitcher(null);
+    return;
+  }
+  currentCategoryId = id;
+  skeletonAll();
+
+  // 1. Theme + hero copy (update together, no stale flash)
+  applyCategoryTheme(cfg.theme);
+  document.getElementById("cat-icon").innerHTML = mascotBadgeHTML({ icon: cfg.icon, color: "rgba(255,255,255,0.22)", size: 84 });
+  document.title = `${cfg.label} Services — HomeSync`;
+  document.getElementById("cat-title").textContent = `${cfg.label} Services`;
+  document.getElementById("cat-tagline").textContent = cfg.tagline;
+  document.getElementById("cat-desc").textContent = cfg.description;
+  document.getElementById("cat-cta-find").textContent = `Find a ${cfg.label.replace(/ies$/,'y').replace(/s$/,'')}`;
+  document.getElementById("cat-cta-find").href = "#workers-grid";
+  document.getElementById("cat-cta-emergency").textContent = `Emergency ${cfg.label}`;
+  document.getElementById("cat-cta-emergency").href = `emergency.html?category=${cfg.id}`;
+  document.getElementById("cat-map-link").href = `map.html?category=${cfg.id}`;
+  document.getElementById("services-title").textContent = `${cfg.label} Services`;
+  document.getElementById("workers-title").textContent = `Verified ${cfg.label} Workers`;
+  document.getElementById("features-title").textContent = `Why choose HomeSync for ${cfg.label}`;
+
+  // 2. 3D hero backdrop themed to this category
+  mountCategoryScene({ container: document.getElementById("cat-hero-canvas"), shape: cfg.heroShape, color: cfg.theme.accent });
+
+  // 3. Switcher
+  renderSwitcher(id);
+
+  // 4. Stats
+  const allWorkersInCat = findMatches({ category: id, verifiedOnly: true });
+  document.getElementById("cat-stats").innerHTML = `
+    <div><b>${allWorkersInCat.length}</b> verified workers</div>
+    <div><b>₹${cfg.rateMin}–₹${cfg.rateMax}</b> typical range</div>
+    <div><b>${cfg.services.length}</b> services offered</div>`;
+
+  // 5. AI recommendation (statistical demand + nearest available workers)
+  renderAI(cfg, allWorkersInCat);
+
+  // 6. Services
+  document.getElementById("services-grid").innerHTML = cfg.services.map(s => `
+    <div class="card">
+      <div class="cat-icon" style="color:var(--cat-primary)">${cfg.icon}</div>
+      <b>${s.name}</b>
+      <div class="cat-range">Starting from ${money(s.price)}</div>
+    </div>`).join("");
+
+  // 7. Workers (re-rendered on locate too)
+  renderWorkers(id);
+
+  // 8. Features
+  document.getElementById("features-grid").innerHTML = cfg.features.map(f => `
+    <div class="card" style="text-align:center">
+      <div style="font-size:1.4rem;margin-bottom:6px">✓</div>
+      <b style="font-size:0.9rem">${f}</b>
+    </div>`).join("");
+
+  // 9. Testimonials
+  document.getElementById("testimonials-grid").innerHTML = cfg.testimonials.map(t => `
+    <div class="card">
+      <p style="font-style:italic">&ldquo;${t.text}&rdquo;</p>
+      <p style="margin-top:10px;font-weight:700;font-size:0.85rem">— ${t.name}</p>
+    </div>`).join("") || `<div class="empty-state">No testimonials yet for this category.</div>`;
+
+  // 10. FAQs
+  document.getElementById("faq-list").innerHTML = cfg.faqs.map((f, i) => `
+    <details class="card faq-item" ${i === 0 ? "open" : ""}>
+      <summary>${f.q}</summary>
+      <p style="margin-top:8px;color:var(--muted);font-size:0.9rem">${f.a}</p>
+    </details>`).join("");
+}
+
+function renderAI(cfg, workersInCat) {
+  const forecast = demandForecast().find(f => f.category === cfg.id);
+  const available = workersInCat.filter(w => w.availability === "available");
+  const top = [...available].sort((a,b) => (b.rating - a.rating) || (b.matchScore||0)-(a.matchScore||0))[0];
+  document.getElementById("ai-panel").innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <b>AI Recommendation</b>
+        <p style="color:var(--muted);font-size:0.88rem;margin-top:4px">
+          ${cfg.label} demand is <b>${forecast?.level || "steady"}</b> right now (${forecast?.recentBookings ?? 0} bookings in the last 14 days).
+          ${available.length} verified worker${available.length === 1 ? "" : "s"} ${userLoc ? "near you are" : "are"} currently available.
+        </p>
+        ${top ? `<p style="font-size:0.88rem;margin-top:6px">Top pick: <a href="worker-profile.html?id=${top.id}" style="color:var(--cat-accent, var(--coop-teal-dark));font-weight:700">${top.name} — ${stars(top.rating)} ${top.rating || "New"}${top.distanceKm !== null && top.distanceKm !== undefined ? ` — ${top.distanceKm.toFixed(1)} km` : ""}</a></p>` : ""}
+        <p class="ai-note" style="margin-top:8px">Statistical, trend-based estimate — not a trained ML model.</p>
+      </div>
+    </div>`;
+}
+
+function renderWorkers(id) {
+  const list = findMatches({ category: id, lat: userLoc?.lat, lng: userLoc?.lng, verifiedOnly: true });
+  const cfg = getCategoryConfig(id);
+  const grid = document.getElementById("workers-grid");
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      No verified ${cfg.label.toLowerCase()} workers are currently available nearby.<br/>
+      Try expanding your search or check back later — or use <a href="emergency.html?category=${id}" style="color:var(--cat-accent, var(--coop-teal-dark))">Emergency ${cfg.label}</a> if this is urgent.
+    </div>`;
+    return;
+  }
+  grid.innerHTML = list.map(w => `
+    <a class="card worker-card" href="worker-profile.html?id=${w.id}">
+      <div class="worker-card-top">
+        <div class="avatar" style="--avatar-color:var(--cat-accent, var(--coop-teal))">${w.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+        <div><div class="worker-name">${w.name}</div><div class="worker-meta">${w.experience} yrs exp</div></div>
+      </div>
+      <div>${verificationBadge(w.verificationStatus)}</div>
+      <div class="worker-stats"><span>${stars(w.rating)} <b>${w.rating || "New"}</b></span><span><b>${w.completedJobs}</b> jobs</span>${w.distanceKm != null ? `<span><b>${w.distanceKm.toFixed(1)} km</b></span>` : ""}</div>
+      <div style="font-weight:700">${money(w.expectedRate)}</div>
+      <span class="btn cat-btn-primary btn-sm btn-block" style="margin-top:4px">Book Now</span>
+    </a>`).join("");
+}
+
+document.getElementById("cat-locate").addEventListener("click", () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((pos) => {
+    userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    renderWorkers(currentCategoryId);
+  });
+});
+
+const initial = qs("category") || CATEGORIES[0].id;
+loadCategory(initial);
+window.addEventListener("beforeunload", resetCategoryTheme);
+</script>
+</body>
+</html>

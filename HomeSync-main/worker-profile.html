@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Worker Profile — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section" id="content" style="max-width:820px"></div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { getWorkerById, getCategory, getReviews } from "./js/store.js";
+import { getCategoryConfig } from "./js/categoryConfig.js";
+import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
+import { money, stars, verificationBadge, qs } from "./js/ui.js";
+
+const worker = getWorkerById(qs("id"));
+const content = document.getElementById("content");
+if (!worker) {
+  content.innerHTML = `<div class="empty-state">Worker not found.</div>`;
+} else {
+  const cat = getCategory(worker.category);
+  applyCategoryTheme(getCategoryConfig(worker.category).theme);
+  window.addEventListener("beforeunload", resetCategoryTheme);
+  const reviews = getReviews().filter(r => r.workerId === worker.id).sort((a,b) => b.createdAt - a.createdAt);
+  content.innerHTML = `
+    <div class="card" style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+      <div class="avatar" style="width:84px;height:84px;font-size:1.6rem;--avatar-color:var(--cat-accent, var(--coop-teal))">${worker.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+      <div style="flex:1">
+        <h1 style="font-weight:800">${worker.name}</h1>
+        <div style="color:var(--muted);margin:4px 0">${cat?.icon || ""} ${cat?.label || worker.category} · ${worker.experience} years experience · ${worker.qualification || "—"}</div>
+        <div>${verificationBadge(worker.verificationStatus)} ${worker.availability === "available" ? '<span class="badge badge-success">Available now</span>' : '<span class="badge badge-muted">Currently busy</span>'}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:1.5rem;font-weight:800">${money(worker.expectedRate)}</div>
+        <div style="color:var(--muted);font-size:0.82rem">approx. per visit</div>
+        <a class="btn cat-btn-primary" style="margin-top:10px;color:var(--cat-accent, var(--coop-teal-dark))" href="${worker.verificationStatus === 'verified' ? 'booking.html?worker=' + worker.id : '#'}" ${worker.verificationStatus !== 'verified' ? 'aria-disabled="true" onclick="alert(\'This worker is still pending verification and cannot be booked yet.\'); return false;"' : ''}>Book Now</a>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:20px">
+      <div class="card">
+        <h3 style="margin-bottom:10px">Skills</h3>
+        <div class="chip-select">${worker.skills.map(s => `<span class="chip selected">${s}</span>`).join("")}</div>
+        <h3 style="margin:16px 0 8px">Certifications</h3>
+        <p style="font-size:0.9rem;color:var(--muted)">${worker.certifications.join(", ") || "None on file"}</p>
+        <h3 style="margin:16px 0 8px">Languages</h3>
+        <p style="font-size:0.9rem;color:var(--muted)">${worker.languages.join(", ")}</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px">Cooperative details</h3>
+        <p style="font-size:0.9rem;color:var(--muted)">Membership ID: <b>${worker.cooperativeMemberId}</b></p>
+        <p style="font-size:0.9rem;color:var(--muted)">Service area: within ${worker.serviceRadiusKm} km of ${worker.address}</p>
+        <h3 style="margin:16px 0 8px">Track record</h3>
+        <p style="font-size:0.9rem">${stars(worker.rating)} <b>${worker.rating || "New"}</b> average (${worker.ratingCount} reviews)</p>
+        <p style="font-size:0.9rem;color:var(--muted)">${worker.completedJobs} jobs completed</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h3 style="margin-bottom:12px">Customer feedback</h3>
+      ${reviews.length === 0 ? '<p style="color:var(--muted);font-size:0.9rem">No reviews yet.</p>' :
+        reviews.map(r => `<div style="border-bottom:1px solid var(--border);padding:10px 0">
+          <div>${stars(r.overall)}</div>
+          <p style="font-size:0.9rem;margin-top:4px">${r.comment || "<i>No comment left</i>"}</p>
+        </div>`).join("")}
+    </div>
+  `;
+}
+</script>
+</body>
+</html>

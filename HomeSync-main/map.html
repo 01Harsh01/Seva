@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Interactive Service Map & Live Routing — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  .map-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 20px;
+    align-items: stretch;
+  }
+  #map {
+    height: 68vh;
+    min-height: 480px;
+    border-radius: 16px;
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+    z-index: 1;
+  }
+  .workers-list-drawer {
+    height: 68vh;
+    min-height: 480px;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid var(--border-strong);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .map-worker-item {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .map-worker-item:hover, .map-worker-item.active {
+    border-color: var(--coop-teal);
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(15,118,110,0.12);
+    transform: translateY(-2px);
+  }
+  .city-pills {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .city-pill {
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #fff;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .city-pill.active, .city-pill:hover {
+    background: var(--coop-teal);
+    color: #fff;
+    border-color: var(--coop-teal);
+  }
+  @media (max-width: 960px) {
+    .map-layout { grid-template-columns: 1fr; }
+    .workers-list-drawer { height: 320px; min-height: 320px; }
+  }
+</style>
+</head>
+<body>
+<div id="hs-header"></div>
+
+<div class="container section">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-weight:800;margin-bottom:4px">Nearby Service Providers & Live GPS Map</h1>
+      <p style="color:var(--muted);font-size:0.9rem">Locate verified cooperative workers in your exact area with accurate distance and live travel ETA.</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a class="btn btn-primary btn-sm" href="marketplace.html">Browse Marketplace</a>
+      <a class="btn btn-amber btn-sm" href="emergency.html">🚨 Emergency Service</a>
+    </div>
+  </div>
+
+  <!-- Search & Location Toolbar -->
+  <div class="card" style="padding:14px;border-radius:14px;margin-bottom:14px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <form id="search-loc-form" style="display:flex;gap:8px;flex:1;min-width:260px;margin:0">
+        <input type="text" id="loc-input" placeholder="🔍 Search any city, locality or landmark (e.g. Indiranagar, Bengaluru)..." style="flex:1" />
+        <button type="submit" class="btn btn-primary btn-sm">Search Area</button>
+      </form>
+      <button class="btn btn-ghost btn-sm" id="btn-gps" style="font-weight:700">📍 Detect My Exact GPS</button>
+      <select id="m-category" style="min-width:160px"><option value="">All Categories</option></select>
+    </div>
+
+    <!-- Quick City Switcher -->
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase">Quick Cities:</span>
+      <div class="city-pills" id="city-pills"></div>
+    </div>
+  </div>
+
+  <!-- Active Location Banner & Route Info -->
+  <div id="route-banner" style="display:none;background:linear-gradient(135deg,var(--coop-teal-dark),var(--coop-teal));color:#fff;padding:12px 18px;border-radius:12px;margin-bottom:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="live-beacon"></span>
+      <div>
+        <div style="font-weight:800;font-size:0.98rem" id="route-banner-title">Route Calculated</div>
+        <div style="font-size:0.82rem;opacity:0.9" id="route-banner-sub">Distance: 1.4 km · Estimated arrival: ~6 mins</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" style="background:#fff;color:var(--coop-teal-dark);font-weight:700" id="btn-clear-route">Clear Route</button>
+      <a class="btn btn-sm" style="background:var(--coop-amber);color:#fff;font-weight:700" id="btn-route-book" href="#">Book This Worker →</a>
+    </div>
+  </div>
+
+  <!-- Map Layout with Side Drawer -->
+  <div class="map-layout">
+    <div id="map"></div>
+    <div class="workers-list-drawer">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        <span style="font-weight:800;font-size:0.92rem" id="drawer-heading">Nearby Workers</span>
+        <span class="badge badge-success" id="drawer-count">0 Available</span>
+      </div>
+      <div id="drawer-list" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module">
+import "./js/ui.js";
+import { CATEGORIES, CITY_PRESETS, findMatches, distanceKm } from "./js/store.js";
+import { getCategoryConfig } from "./js/categoryConfig.js";
+import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
+import { money, stars, verificationBadge, qs } from "./js/ui.js";
+
+// Populate Category Selector
+const catSel = document.getElementById("m-category");
+catSel.innerHTML += CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join("");
+if (qs("category")) catSel.value = qs("category");
+
+// Populate City Pills
+const pillsBox = document.getElementById("city-pills");
+pillsBox.innerHTML = CITY_PRESETS.map((c, i) => `
+  <button class="city-pill ${i === 0 ? "active" : ""}" data-id="${c.id}">${c.name}</button>
+`).join("");
+
+// Initial Coordinates: Guwahati HQ
+let currentCenter = { lat: 26.1445, lng: 91.7362, name: "Guwahati (Coop HQ)" };
+let userGpsMarker = null;
+let userAccuracyCircle = null;
+let activeRouteLine = null;
+let markers = [];
+let activeWorkerList = [];
+
+const map = L.map("map").setView([currentCenter.lat, currentCenter.lng], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 18,
+}).addTo(map);
+
+function render() {
+  // Clear previous worker markers
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  
+  if (activeRouteLine) {
+    map.removeLayer(activeRouteLine);
+    activeRouteLine = null;
+  }
+  document.getElementById("route-banner").style.display = "none";
+
+  const category = catSel.value || null;
+  activeWorkerList = findMatches({
+    category,
+    lat: currentCenter.lat,
+    lng: currentCenter.lng,
+    verifiedOnly: true,
+  });
+
+  document.getElementById("drawer-heading").textContent = `Workers near ${currentCenter.name.split(",")[0]}`;
+  document.getElementById("drawer-count").textContent = `${activeWorkerList.length} Verified`;
+
+  const drawerList = document.getElementById("drawer-list");
+  if (activeWorkerList.length === 0) {
+    drawerList.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:20px">No verified workers found in this category near ${currentCenter.name}. Try another category or city.</div>`;
+    return;
+  }
+
+  // Populate Map Markers
+  activeWorkerList.forEach((w, idx) => {
+    if (!w.lat || !w.lng) return;
+    const cat = CATEGORIES.find(c => c.id === w.category);
+    const cfg = getCategoryConfig(w.category);
+    const distText = w.distanceKm !== null ? `${w.distanceKm.toFixed(1)} km` : "Nearby";
+    const etaMin = w.distanceKm !== null ? Math.max(3, Math.round(w.distanceKm * 3.5)) : 12;
+
+    const pinIcon = L.divIcon({
+      className: "custom-map-pin",
+      html: `<span>${cat?.icon || "⚡"}</span>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+    });
+
+    const marker = L.marker([w.lat, w.lng], { icon: pinIcon }).addTo(map);
+    
+    const popupContent = `
+      <div style="min-width:200px;font-family:var(--font)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="avatar" style="--avatar-color:${cfg?.theme.accent || 'var(--coop-teal)'};width:32px;height:32px;font-size:0.8rem">${w.name.slice(0,2)}</div>
+          <div>
+            <b>${w.name}</b>
+            <div style="font-size:0.75rem;color:var(--muted)">${cat?.icon || ""} ${cat?.label || w.category}</div>
+          </div>
+        </div>
+        <div style="font-size:0.82rem;margin-bottom:8px">
+          <div>${stars(w.rating)} <b>${w.rating || "New"}</b> (${w.ratingCount})</div>
+          <div style="color:var(--coop-teal-dark);font-weight:700;margin-top:2px">📍 ${distText} away (ETA: ~${etaMin} mins)</div>
+          <div style="font-weight:700">${money(w.expectedRate)} / visit</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="btn btn-ghost btn-sm draw-route-btn" data-id="${w.id}">📍 Route</button>
+          <a class="btn btn-primary btn-sm" href="booking.html?worker=${w.id}">Book Now</a>
+        </div>
+      </div>
+    `;
+
+    marker.bindPopup(popupContent);
+    marker.on("popupopen", () => {
+      document.querySelector(`.draw-route-btn[data-id="${w.id}"]`)?.addEventListener("click", () => {
+        drawRouteToWorker(w);
+      });
+    });
+
+    markers.push(marker);
+  });
+
+  // Populate Drawer List
+  drawerList.innerHTML = activeWorkerList.map(w => {
+    const cat = CATEGORIES.find(c => c.id === w.category);
+    const distText = w.distanceKm !== null ? `${w.distanceKm.toFixed(1)} km` : "Nearby";
+    const etaMin = w.distanceKm !== null ? Math.max(3, Math.round(w.distanceKm * 3.5)) : 12;
+    
+    return `
+      <div class="map-worker-item" data-id="${w.id}">
+        <div style="display:flex;justify-content:space-between;align-items:start">
+          <b>${w.name}</b>
+          <span style="font-size:0.8rem;font-weight:700;color:var(--coop-teal-dark)">~${etaMin} min</span>
+        </div>
+        <div style="font-size:0.8rem;color:var(--muted);margin:2px 0">${cat?.icon || ""} ${cat?.label || w.category} · ${stars(w.rating)} (${w.ratingCount})</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+          <span style="font-size:0.82rem;font-weight:700">${money(w.expectedRate)}</span>
+          <span style="font-size:0.75rem;color:var(--muted)">📍 ${distText} away</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  drawerList.querySelectorAll(".map-worker-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const wid = item.dataset.id;
+      const worker = activeWorkerList.find(w => w.id === wid);
+      if (worker) {
+        map.flyTo([worker.lat, worker.lng], 15);
+        const targetMarker = markers.find(m => m.getLatLng().lat === worker.lat && m.getLatLng().lng === worker.lng);
+        targetMarker?.openPopup();
+        drawRouteToWorker(worker);
+      }
+    });
+  });
+}
+
+function drawRouteToWorker(w) {
+  if (activeRouteLine) map.removeLayer(activeRouteLine);
+  
+  const userPt = [currentCenter.lat, currentCenter.lng];
+  const workerPt = [w.lat, w.lng];
+  const dist = distanceKm(currentCenter.lat, currentCenter.lng, w.lat, w.lng) || 1.8;
+  const etaMins = Math.max(3, Math.round(dist * 3.5));
+
+  activeRouteLine = L.polyline([userPt, workerPt], {
+    color: "#0F766E",
+    weight: 5,
+    opacity: 0.9,
+    dashArray: "6, 8",
+  }).addTo(map);
+
+  map.fitBounds(L.latLngBounds([userPt, workerPt]), { padding: [60, 60] });
+
+  const banner = document.getElementById("route-banner");
+  document.getElementById("route-banner-title").textContent = `Route to ${w.name} (${w.category})`;
+  document.getElementById("route-banner-sub").textContent = `Distance: ${dist.toFixed(1)} km · Arrival Estimate: ~${etaMins} mins · Service Rate: ${money(w.expectedRate)}`;
+  document.getElementById("btn-route-book").href = `booking.html?worker=${w.id}`;
+  banner.style.display = "flex";
+}
+
+document.getElementById("btn-clear-route").addEventListener("click", () => {
+  if (activeRouteLine) { map.removeLayer(activeRouteLine); activeRouteLine = null; }
+  document.getElementById("route-banner").style.display = "none";
+});
+
+// Update Center & Map view
+function setLocationCenter(lat, lng, name, zoom = 13) {
+  currentCenter = { lat, lng, name };
+  map.setView([lat, lng], zoom);
+
+  // Update user marker
+  if (userGpsMarker) map.removeLayer(userGpsMarker);
+  if (userAccuracyCircle) map.removeLayer(userAccuracyCircle);
+
+  const userIcon = L.divIcon({
+    className: "custom-map-pin user-dest",
+    html: "📍",
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+
+  userGpsMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+  userGpsMarker.bindPopup(`<b>📍 Your Active Center</b><br/>${name}`);
+
+  userAccuracyCircle = L.circle([lat, lng], {
+    radius: 600,
+    color: "#0F766E",
+    fillColor: "#0F766E",
+    fillOpacity: 0.12,
+    weight: 1.5,
+  }).addTo(map);
+
+  render();
+}
+
+// City Presets Event
+pillsBox.querySelectorAll(".city-pill").forEach(pill => {
+  pill.addEventListener("click", () => {
+    pillsBox.querySelectorAll(".city-pill").forEach(p => p.classList.remove("active"));
+    pill.classList.add("active");
+    const city = CITY_PRESETS.find(c => c.id === pill.dataset.id);
+    if (city) {
+      setLocationCenter(city.lat, city.lng, city.name);
+    }
+  });
+});
+
+// Search Address / Landmark via OpenStreetMap Geocoding
+document.getElementById("search-loc-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const query = document.getElementById("loc-input").value.trim();
+  if (!query) return;
+
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=1`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const item = data[0];
+      const lat = parseFloat(item.lat);
+      const lng = parseFloat(item.lon);
+      pillsBox.querySelectorAll(".city-pill").forEach(p => p.classList.remove("active"));
+      setLocationCenter(lat, lng, item.display_name.split(",").slice(0, 2).join(","), 14);
+    } else {
+      alert("Location not found. Please try entering a major city or neighborhood name.");
+    }
+  } catch (err) {
+    alert("Could not reach geocoding service. Please pick a city from the quick list.");
+  }
+});
+
+// GPS Locate Button
+document.getElementById("btn-gps").addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+  
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      let areaName = "Your Exact GPS Coordinates";
+
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
+        if (res.ok) {
+          const data = await res.json();
+          areaName = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town || "Your Location";
+        }
+      } catch (err) {}
+
+      pillsBox.querySelectorAll(".city-pill").forEach(p => p.classList.remove("active"));
+      setLocationCenter(lat, lng, `GPS: ${areaName}`, 14);
+    },
+    (err) => {
+      alert("Location permission denied. Showing default cooperative service area.");
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+});
+
+catSel.addEventListener("change", () => {
+  applyCategoryTheme(catSel.value ? getCategoryConfig(catSel.value)?.theme : null);
+  render();
+});
+
+setLocationCenter(currentCenter.lat, currentCenter.lng, currentCenter.name);
+</script>
+</body>
+</html>

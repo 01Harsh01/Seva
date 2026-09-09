@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.dataset.dashboard = "1";</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Worker Dashboard — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section">
+  <div id="verify-banner"></div>
+  <h1 style="font-weight:800;margin-bottom:16px">Worker Dashboard</h1>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="jobs">Jobs</button>
+    <button class="tab-btn" data-tab="availability">Availability</button>
+    <button class="tab-btn" data-tab="earnings">Earnings</button>
+    <button class="tab-btn" data-tab="skills">Skills</button>
+    <button class="tab-btn" data-tab="welfare">Welfare</button>
+    <button class="tab-btn" data-tab="profile">Profile</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-jobs"></div>
+  <div class="tab-panel" id="tab-availability"></div>
+  <div class="tab-panel" id="tab-earnings"></div>
+  <div class="tab-panel" id="tab-skills"></div>
+  <div class="tab-panel" id="tab-welfare"></div>
+  <div class="tab-panel" id="tab-profile"></div>
+</div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { requireAuth, currentWorkerProfile, getBookingsForWorker, updateBookingStatus, saveWorker, getCategory, CATEGORIES } from "./js/store.js";
+import { money, badge, verificationBadge, stars } from "./js/ui.js";
+
+if (!requireAuth("worker")) throw new Error("redirecting");
+let worker = currentWorkerProfile();
+
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+}));
+const hashTab = location.hash.replace("#", "");
+if (hashTab) document.querySelector(`[data-tab="${hashTab}"]`)?.click();
+
+function renderVerifyBanner() {
+  const box = document.getElementById("verify-banner");
+  if (worker.verificationStatus !== "verified") {
+    box.innerHTML = `<div class="card" style="background:var(--coop-amber-dim);margin-bottom:16px">
+      ${verificationBadge(worker.verificationStatus)} Your profile is not visible to customers yet. A cooperative administrator needs to verify your certifications first.
+    </div>`;
+  } else box.innerHTML = "";
+}
+
+const statusTone = { requested: "warn", accepted: "info", scheduled: "info", in_progress: "info", completed: "success", rejected: "danger", cancelled: "muted" };
+
+function renderJobs() {
+  const bookings = getBookingsForWorker(worker.id);
+  const el = document.getElementById("tab-jobs");
+  el.innerHTML = bookings.length === 0 ? `<div class="empty-state">No jobs yet.</div>` : `
+    <div class="grid grid-2">${bookings.map(b => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between">
+          <div><b>${b.customerName}</b><div style="color:var(--muted);font-size:0.85rem">${b.category} · ${b.date} ${b.time}</div></div>
+          ${badge(b.status.replace("_"," "), statusTone[b.status] || "muted")}
+        </div>
+        ${b.isEmergency ? badge("EMERGENCY","danger") : ""}
+        <p style="font-size:0.85rem;color:var(--muted);margin-top:8px">${b.address}</p>
+        <p style="font-size:0.85rem">${b.description || "No description provided"}</p>
+        ${b.details && Object.keys(b.details).length ? `<div style="font-size:0.8rem;color:var(--muted);margin-top:4px">${Object.entries(b.details).filter(([,v])=>v).map(([k,v])=>`<div>${k.replace(/([A-Z])/g," $1")}: <b>${v}</b></div>`).join("")}</div>` : ""}
+        <p style="font-weight:700;margin-top:6px">${money(b.serviceCharge)}</p>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          ${b.status === "requested" ? `<button class="btn btn-primary btn-sm" data-act="accepted" data-id="${b.id}">Accept</button><button class="btn btn-ghost btn-sm" data-act="rejected" data-id="${b.id}">Reject</button>` : ""}
+          ${b.status === "accepted" ? `<button class="btn btn-primary btn-sm" data-act="in_progress" data-id="${b.id}">Start Job</button>` : ""}
+          ${b.status === "in_progress" ? `<button class="btn btn-primary btn-sm" data-act="completed" data-id="${b.id}">Mark Completed</button>` : ""}
+        </div>
+      </div>`).join("")}</div>`;
+  el.querySelectorAll("[data-act]").forEach(btn => btn.addEventListener("click", () => {
+    updateBookingStatus(btn.dataset.id, btn.dataset.act);
+    renderAll();
+  }));
+}
+
+function renderAvailability() {
+  const el = document.getElementById("tab-availability");
+  el.innerHTML = `
+    <div class="card" style="max-width:420px">
+      <h3 style="margin-bottom:12px">Current status</h3>
+      <p style="margin-bottom:12px">${worker.availability === "available" ? badge("Available","success") : badge("Busy","muted")}</p>
+      <button class="btn btn-primary" id="toggle-avail">Set to ${worker.availability === "available" ? "Busy" : "Available"}</button>
+      <h3 style="margin:20px 0 8px">Service radius</h3>
+      <input type="range" min="1" max="30" id="radius" value="${worker.serviceRadiusKm}" style="width:100%" />
+      <p style="color:var(--muted);font-size:0.85rem" id="radius-val">${worker.serviceRadiusKm} km</p>
+    </div>`;
+  document.getElementById("toggle-avail").addEventListener("click", () => {
+    worker.availability = worker.availability === "available" ? "busy" : "available";
+    saveWorker(worker);
+    renderAvailability();
+  });
+  const radius = document.getElementById("radius");
+  radius.addEventListener("input", () => {
+    document.getElementById("radius-val").textContent = radius.value + " km";
+    worker.serviceRadiusKm = Number(radius.value);
+    saveWorker(worker);
+  });
+}
+
+function renderEarnings() {
+  const bookings = getBookingsForWorker(worker.id).filter(b => b.status === "completed");
+  const now = Date.now(); const DAY = 86400000;
+  const today = bookings.filter(b => now - b.createdAt < DAY).reduce((s,b) => s + b.serviceCharge, 0);
+  const week = bookings.filter(b => now - b.createdAt < 7*DAY).reduce((s,b) => s + b.serviceCharge, 0);
+  const month = bookings.filter(b => now - b.createdAt < 30*DAY).reduce((s,b) => s + b.serviceCharge, 0);
+  const total = bookings.reduce((s,b) => s + b.serviceCharge, 0);
+  const maxVal = Math.max(1, today, week, month, total);
+  const el = document.getElementById("tab-earnings");
+  el.innerHTML = `
+    <div class="grid grid-4">
+      <div class="card stat-card"><div class="stat-value">${money(today)}</div><div class="stat-label">Today</div><div class="hs-bar-track" style="--bar-pct:${Math.round(today/maxVal*100)}%"><div class="hs-bar-fill" style="background:var(--coop-teal)"></div></div></div>
+      <div class="card stat-card"><div class="stat-value">${money(week)}</div><div class="stat-label">This week</div><div class="hs-bar-track" style="--bar-pct:${Math.round(week/maxVal*100)}%"><div class="hs-bar-fill" style="background:var(--coop-teal)"></div></div></div>
+      <div class="card stat-card"><div class="stat-value">${money(month)}</div><div class="stat-label">This month</div><div class="hs-bar-track" style="--bar-pct:${Math.round(month/maxVal*100)}%"><div class="hs-bar-fill" style="background:var(--coop-teal)"></div></div></div>
+      <div class="card stat-card"><div class="stat-value">${money(total)}</div><div class="stat-label">Total earnings</div><div class="hs-bar-track" style="--bar-pct:100%"><div class="hs-bar-fill" style="background:var(--coop-amber)"></div></div></div>
+    </div>
+    <p class="ai-note">Earnings shown reflect the fair-wage service charge before the 3% cooperative welfare-fund deduction. See your invoices for the exact net amount per job.</p>
+    <h3 style="margin:20px 0 10px">Payment history</h3>
+    ${bookings.length === 0 ? '<div class="empty-state">No completed jobs yet.</div>' :
+      `<table class="hs-table"><thead><tr><th>Date</th><th>Customer</th><th>Amount</th></tr></thead><tbody>
+        ${bookings.map(b => `<tr><td>${b.date}</td><td>${b.customerName}</td><td>${money(b.serviceCharge)}</td></tr>`).join("")}
+      </tbody></table>`}`;
+}
+
+function renderSkills() {
+  const cat = getCategory(worker.category);
+  const el = document.getElementById("tab-skills");
+  el.innerHTML = `
+    <div class="card" style="max-width:520px">
+      <h3 style="margin-bottom:10px">Your skills — ${cat?.label}</h3>
+      <div class="chip-select" id="skill-chips">${cat.skills.map(s => `<span class="chip ${worker.skills.includes(s) ? "selected" : ""}" data-skill="${s}">${s}</span>`).join("")}</div>
+      <h3 style="margin:18px 0 8px">Certifications on file</h3>
+      <p style="color:var(--muted);font-size:0.9rem">${worker.certifications.join(", ") || "None uploaded yet"}</p>
+      <div class="form-group" style="margin-top:12px"><label>Add a certification</label>
+        <div style="display:flex;gap:8px"><input class="form-control" id="new-cert" placeholder="e.g. Advanced Wiring Certificate" /><button class="btn btn-ghost" id="add-cert">Add</button></div>
+      </div>
+      <p class="ai-note">New certifications require re-verification by a cooperative administrator before your "Verified" badge is reconfirmed.</p>
+    </div>`;
+  el.querySelectorAll("#skill-chips .chip").forEach(chip => chip.addEventListener("click", () => {
+    chip.classList.toggle("selected");
+    worker.skills = [...el.querySelectorAll("#skill-chips .chip.selected")].map(c => c.dataset.skill);
+    saveWorker(worker);
+  }));
+  el.querySelector("#add-cert").addEventListener("click", () => {
+    const v = el.querySelector("#new-cert").value.trim();
+    if (!v) return;
+    worker.certifications.push(v);
+    worker.verificationStatus = worker.verificationStatus === "verified" ? "under_review" : worker.verificationStatus;
+    saveWorker(worker);
+    worker = currentWorkerProfile();
+    renderAll();
+  });
+}
+
+function renderWelfare() {
+  const el = document.getElementById("tab-welfare");
+  el.innerHTML = `
+    <div class="grid grid-2">
+      <div class="card"><h3 style="margin-bottom:8px">Insurance status</h3>${badge(worker.welfare.insurance, worker.welfare.insurance === "covered" ? "success" : "warn")}</div>
+      <div class="card"><h3 style="margin-bottom:8px">Welfare scheme</h3>${badge(worker.welfare.scheme, worker.welfare.scheme === "enrolled" ? "success" : "warn")}</div>
+      <div class="card"><h3 style="margin-bottom:8px">Training completed</h3><p style="font-size:0.9rem;color:var(--muted)">${worker.welfare.training.join(", ") || "None yet"}</p></div>
+      <div class="card"><h3 style="margin-bottom:8px">Emergency support</h3><p style="font-size:0.9rem;color:var(--muted)">Cooperative helpline: 1800-XXX-XXXX (placeholder — configure with your cooperative's real number)</p></div>
+    </div>`;
+}
+
+function renderProfile() {
+  const el = document.getElementById("tab-profile");
+  el.innerHTML = `
+    <div class="card" style="max-width:480px">
+      <p><b>Name:</b> ${worker.name}</p>
+      <p><b>Phone:</b> ${worker.phone}</p>
+      <p><b>Email:</b> ${worker.email}</p>
+      <p><b>Cooperative ID:</b> ${worker.cooperativeMemberId}</p>
+      <p><b>Rating:</b> ${stars(worker.rating)} ${worker.rating || "New"} (${worker.ratingCount} reviews)</p>
+      <p><b>Completed jobs:</b> ${worker.completedJobs}</p>
+      <div class="form-group" style="margin-top:14px"><label>Expected rate (₹)</label>
+        <input class="form-control" type="number" id="rate-input" value="${worker.expectedRate}" />
+      </div>
+      <button class="btn btn-primary" id="save-rate">Save</button>
+    </div>`;
+  el.querySelector("#save-rate").addEventListener("click", () => {
+    worker.expectedRate = Number(el.querySelector("#rate-input").value);
+    saveWorker(worker);
+    alert("Rate updated.");
+  });
+}
+
+function renderAll() {
+  worker = currentWorkerProfile();
+  renderVerifyBanner(); renderJobs(); renderAvailability(); renderEarnings(); renderSkills(); renderWelfare(); renderProfile();
+}
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Emergency Service — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section" style="max-width:760px">
+
+  <div class="emergency-banner" id="emergency-banner">
+    <h2 id="em-title">🚨 Emergency Service</h2>
+    <p id="em-sub">Choose the kind of emergency and we'll find a nearby verified worker fast.</p>
+  </div>
+
+  <div class="card" style="margin-top:24px" id="step-select">
+    <h3 style="margin-bottom:12px" id="select-heading">What's the emergency?</h3>
+    <div class="grid grid-3" id="emergency-cats"></div>
+  </div>
+
+  <div class="card" id="step-types" style="margin-top:20px;display:none"></div>
+  <div class="card" id="step-results" style="margin-top:20px;display:none"></div>
+</div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { findMatches, currentUser } from "./js/store.js";
+import { getCategoryConfig, getActiveCategoryConfigs } from "./js/categoryConfig.js";
+import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
+import { money, verificationBadge, qs } from "./js/ui.js";
+import { mascotBadgeHTML } from "./js/mascot.js";
+
+// Categories that make sense as "urgent" requests — every active
+// category defines its own emergencyTypes, so any of them can be
+// requested here; we lead with the most common urgent ones.
+const LEAD_CATS = ["electrical", "plumbing", "technician", "carpentry"];
+
+const catBox = document.getElementById("emergency-cats");
+const active = getActiveCategoryConfigs();
+const ordered = [...active].sort((a,b) => (LEAD_CATS.includes(b.id) - LEAD_CATS.includes(a.id)));
+catBox.innerHTML = ordered.map(c => `
+  <button class="card cat-card" style="border:none;width:100%" data-cat="${c.id}">
+    ${mascotBadgeHTML({ icon: c.icon, color: c.theme.accent, size: 52 })}<div class="cat-label" style="margin-top:8px">${c.label}</div>
+  </button>`).join("");
+catBox.querySelectorAll("[data-cat]").forEach(btn => btn.addEventListener("click", () => selectCategory(btn.dataset.cat)));
+
+function selectCategory(categoryId) {
+  const cfg = getCategoryConfig(categoryId);
+  applyCategoryTheme(cfg.theme);
+  document.getElementById("emergency-banner").style.background = cfg.theme.gradient;
+  document.getElementById("em-title").textContent = `🚨 Emergency ${cfg.label}`;
+  document.getElementById("em-sub").textContent = `Verified ${cfg.label.toLowerCase()} workers, ranked by distance and availability.`;
+  document.getElementById("select-heading").textContent = `Choose another category`;
+
+  const typesBox = document.getElementById("step-types");
+  typesBox.style.display = "block";
+  typesBox.innerHTML = `
+    <h3 style="margin-bottom:10px">Common ${cfg.label.toLowerCase()} emergencies</h3>
+    <div class="chip-select">${(cfg.emergencyTypes || []).map(t => `<span class="chip">${t}</span>`).join("")}</div>
+    <button class="btn cat-btn-primary" style="margin-top:16px" id="find-now">Find Nearby ${cfg.label} Workers</button>
+  `;
+  document.getElementById("find-now").addEventListener("click", () => findEmergencyWorkers(categoryId));
+
+  history.replaceState(null, "", `emergency.html?category=${categoryId}`);
+}
+
+function findEmergencyWorkers(category) {
+  const cfg = getCategoryConfig(category);
+  const resultsBox = document.getElementById("step-results");
+  resultsBox.style.display = "block";
+  resultsBox.innerHTML = "<p>📍 Detecting your location…</p>";
+
+  function showResults(loc) {
+    const matches = findMatches({ category, lat: loc?.lat, lng: loc?.lng, availableOnly: true, verifiedOnly: true }).slice(0, 5);
+    resultsBox.innerHTML = `
+      <h3 style="margin-bottom:4px">Nearby verified & available ${cfg.label.toLowerCase()} workers</h3>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:14px">${loc ? "Ranked by distance, skill match and rating." : "Location unavailable — ranked by rating and availability."}</p>
+      ${matches.length === 0 ? `<div class="empty-state">No available verified ${cfg.label.toLowerCase()} workers right now. Please try again shortly, or widen your search from the <a href="category.html?category=${category}" style="color:var(--cat-accent)">category page</a>.</div>` :
+        matches.map(w => `
+        <div class="card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div><b>${w.name}</b> ${verificationBadge(w.verificationStatus)}
+              <div style="color:var(--muted);font-size:0.82rem">${w.distanceKm !== null ? w.distanceKm.toFixed(1) + " km away · " : ""}${money(w.expectedRate)}</div>
+            </div>
+            <button class="btn cat-btn-primary btn-sm" data-req="${w.id}">Send Emergency Request</button>
+          </div>
+        </div>`).join("")}
+    `;
+    resultsBox.querySelectorAll("[data-req]").forEach(btn => btn.addEventListener("click", () => sendRequest(btn.dataset.req, category)));
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => showResults({ lat: pos.coords.latitude, lng: pos.coords.longitude }), () => showResults(null));
+  } else showResults(null);
+}
+
+function sendRequest(workerId) {
+  const user = currentUser();
+  if (!user || user.role !== "customer") {
+    alert("Please log in as a customer to send an emergency request.");
+    location.href = "login.html";
+    return;
+  }
+  location.href = `booking.html?worker=${workerId}&emergency=1`;
+}
+
+const preselected = qs("category");
+if (preselected) selectCategory(preselected);
+window.addEventListener("beforeunload", resetCategoryTheme);
+</script>
+</body>
+</html>

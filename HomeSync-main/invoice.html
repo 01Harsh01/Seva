@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Invoice — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section">
+  <div class="invoice-box" id="invoice-box"></div>
+  <div style="text-align:center;margin-top:16px" class="no-print">
+    <button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn btn-ghost" href="customer-dashboard.html">Back to Bookings</a>
+  </div>
+</div>
+
+<script type="module">
+import "./js/ui.js";
+import { getBookingById, getInvoiceForBooking, generateInvoice } from "./js/store.js";
+import { money, qs } from "./js/ui.js";
+
+const bookingId = qs("booking");
+const booking = getBookingById(bookingId);
+let invoice = getInvoiceForBooking(bookingId);
+if (!invoice && booking) invoice = generateInvoice(bookingId);
+
+const box = document.getElementById("invoice-box");
+if (!invoice) {
+  box.innerHTML = "<p>Invoice not available yet — it is generated once payment is completed.</p>";
+} else {
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <h2 style="font-weight:800">HomeSync</h2>
+        <p style="color:var(--muted);font-size:0.85rem">${invoice.cooperative}</p>
+      </div>
+      <div style="text-align:right">
+        <b>Invoice ${invoice.invoiceNumber}</b>
+        <p style="color:var(--muted);font-size:0.85rem">${invoice.date}</p>
+      </div>
+    </div>
+    <div class="grid grid-2" style="margin-bottom:20px">
+      <div><b>Customer</b><p style="color:var(--muted);font-size:0.9rem">${invoice.customerName}</p></div>
+      <div><b>Worker</b><p style="color:var(--muted);font-size:0.9rem">${invoice.workerName}</p></div>
+    </div>
+    <div class="invoice-row"><span>Service (${invoice.category})</span><span>${money(invoice.labourCharge)}</span></div>
+    <div class="invoice-row"><span>Additional charges</span><span>${money(invoice.additionalCharges)}</span></div>
+    <div class="invoice-row"><span>Cooperative fee (8%)</span><span>${money(invoice.cooperativeFee)}</span></div>
+    <div class="invoice-row invoice-total" style="margin-top:8px"><span>Total</span><span>${money(invoice.total)}</span></div>
+    <div class="invoice-row"><span>Worker earning (after 3% welfare-fund deduction)</span><span>${money(invoice.workerEarning)}</span></div>
+    <div class="invoice-row"><span>Payment status</span><span>${invoice.paymentStatus}</span></div>
+    <div class="invoice-row"><span>Transaction ID</span><span>${invoice.transactionId}</span></div>
+  `;
+}
+</script>
+</body>
+</html>

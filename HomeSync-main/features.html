@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Platform Capabilities — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+
+<section class="hero-3d" style="padding:64px 0 40px">
+  <div class="hero-3d-bg-blobs">
+    <div class="hero-3d-blob" style="width:360px;height:360px;top:-70px;left:6%;background:var(--coop-teal)"></div>
+    <div class="hero-3d-blob" style="width:300px;height:300px;bottom:-60px;right:10%;background:var(--coop-amber);animation-delay:-5s"></div>
+  </div>
+  <div class="container hero-3d-content" style="text-align:center">
+    <span class="hero-badge glass-card" style="background:rgba(15,118,110,0.12);color:var(--coop-teal-dark);border-color:transparent">SIH Problem Statement 89</span>
+    <h1 style="font-size:clamp(2rem,4vw,2.8rem)">Everything the cooperative marketplace needs, built in</h1>
+    <p class="hero-lede" style="margin-left:auto;margin-right:auto">From worker verification to AI-assisted workforce planning — every capability below is live in the product, not a mockup.</p>
+  </div>
+</section>
+
+<section class="section" id="group-core"></section>
+<section class="section" style="background:var(--surface2)" id="group-trust"></section>
+<section class="section" id="group-intel"></section>
+
+<section class="section">
+  <div class="container">
+    <div class="glass-dark card" style="text-align:center;padding:56px 24px;background:linear-gradient(135deg,#0B5B54,#0F766E)">
+      <h2 style="font-size:1.8rem;font-weight:800;margin-bottom:10px">Together We Build Stronger Communities</h2>
+      <div style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:16px;font-weight:700;font-size:0.9rem;opacity:0.95">
+        <span>Fair Wages</span><span>•</span><span>Trust</span><span>•</span><span>Growth</span>
+      </div>
+      <a class="btn cat-btn-primary" style="margin-top:26px" href="marketplace.html">Explore the Marketplace →</a>
+    </div>
+  </div>
+</section>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace · SIH Problem Statement 89</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { mascotBadgeHTML } from "./js/mascot.js";
+
+const FEATURE_GROUPS = [
+  {
+    id: "group-core",
+    title: "Core Marketplace",
+    items: [
+      { icon: "🛡️", color: "#0F766E", title: "Service Provider Registration & Verification", desc: "Workers register with full profile details and move through Pending → Under Review → Verified before appearing in search.", href: "register.html?as=worker" },
+      { icon: "📋", color: "#B45309", title: "Worker Skill Profiling & Certification", desc: "Per-category skill lists (e.g. wiring, leak repair, furniture repair) with admin-verified certification uploads.", href: "worker-dashboard.html#skills" },
+      { icon: "📅", color: "#1D4ED8", title: "Customer Booking & Scheduling", desc: "Category-aware booking questions, date/time selection, and live status from Requested through Completed.", href: "booking.html" },
+      { icon: "📍", color: "#4D7C0F", title: "Geo-Location Based Service Matching", desc: "Browser geolocation ranks verified workers by distance, skill match, rating, and current workload.", href: "map.html" },
+      { icon: "💳", color: "#0891B2", title: "Digital Payments & Invoicing", desc: "Online or cash, with a transparently disclosed cooperative fee and a downloadable, itemised digital invoice.", href: "payment.html" },
+    ],
+  },
+  {
+    id: "group-trust",
+    title: "Trust, Safety & Community",
+    items: [
+      { icon: "⭐", color: "#D97706", title: "Rating & Feedback Mechanism", desc: "Post-completion ratings update a worker's average automatically, with duplicate-review prevention per booking.", href: "customer-dashboard.html" },
+      { icon: "🤍", color: "#BE123C", title: "Worker Welfare & Insurance Integration", desc: "Insurance status, welfare scheme enrollment, and training records — tracked per worker, editable by the cooperative admin.", href: "worker-dashboard.html#welfare" },
+      { icon: "🚨", color: "#DC2626", title: "Emergency & On-Demand Service Booking", desc: "One tap to a category-specific emergency flow — burst pipes, power failures — ranked by distance and live availability.", href: "emergency.html" },
+      { icon: "📊", color: "#4338CA", title: "Cooperative Federation Admin Dashboard", desc: "Verification queue, booking/payment monitoring, welfare coverage, disputes, and category management in one place.", href: "admin-dashboard.html" },
+      { icon: "🌐", color: "#059669", title: "Multilingual Application", desc: "English, Hindi, and Assamese out of the box, switchable anywhere in the app, built to add more languages easily.", href: "index.html" },
+    ],
+  },
+  {
+    id: "group-intel",
+    title: "Intelligence & Reach",
+    items: [
+      { icon: "🤖", color: "#0F766E", title: "AI-Based Demand Forecasting", desc: "A transparent, statistical trend model over booking history — labelled honestly as trend analysis, not a trained ML model.", href: "admin-dashboard.html#forecast" },
+      { icon: "🧭", color: "#B45309", title: "Smart Workforce Allocation", desc: "AI-assisted (not autonomous) recommendations on where to shift worker availability based on forecasted demand.", href: "admin-dashboard.html#analytics" },
+      { icon: "☁️", color: "#0891B2", title: "Cloud-Ready & Secure by Design", desc: "The data layer is written so a real backend (Firestore/Postgres) can be swapped in behind the same functions, with role-based access throughout.", href: null },
+      { icon: "📱", color: "#4D7C0F", title: "Mobile-First, Every Screen", desc: "Fully responsive from phones to desktops — no separate mobile app needed to reach the same experience.", href: null },
+    ],
+  },
+];
+
+FEATURE_GROUPS.forEach((group) => {
+  const section = document.getElementById(group.id);
+  section.innerHTML = `
+    <div class="container">
+      <h2 class="section-title">${group.title}</h2>
+      <div class="grid grid-3">
+        ${group.items.map(f => {
+          const card = `
+            <div class="card cat-card" style="text-align:left;border-top:3px solid ${f.color}">
+              ${mascotBadgeHTML({ icon: f.icon, color: f.color, size: 52 })}
+              <b style="display:block;margin-top:12px">${f.title}</b>
+              <p style="color:var(--muted);font-size:0.88rem;margin-top:6px">${f.desc}</p>
+            </div>`;
+          return f.href ? `<a href="${f.href}" style="display:block">${card}</a>` : card;
+        }).join("")}
+      </div>
+    </div>`;
+});
+</script>
+</body>
+</html>

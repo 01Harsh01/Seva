@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Book a Service — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section" style="max-width:640px">
+  <h1 style="font-weight:800;margin-bottom:4px" id="page-title" data-i18n="btn_book_now"></h1>
+  <div class="card" id="worker-summary" style="margin-bottom:20px"></div>
+
+  <form class="card" id="booking-form">
+    <div class="form-group"><label>Date</label><input class="form-control" type="date" id="b-date" required /></div>
+    <div class="form-group"><label>Time</label><input class="form-control" type="time" id="b-time" required /></div>
+    <div class="form-group"><label>Service address</label><textarea class="form-control" id="b-address" required placeholder="Full address including landmark"></textarea></div>
+
+    <!-- Category-specific questions render here -->
+    <div id="dynamic-fields"></div>
+
+    <div class="form-group"><label>Anything else the worker should know?</label><textarea class="form-control" id="b-desc" placeholder="Optional notes"></textarea></div>
+    <div class="form-group"><label>Optional: reference photo URL</label><input class="form-control" id="b-photo" placeholder="Paste an image link (photo upload isn't wired to storage in this demo)" /></div>
+    <div class="form-group"><label>Preferred payment method</label>
+      <select class="form-control" id="b-payment">
+        <option value="online">Pay online (Razorpay — demo mode)</option>
+        <option value="cash">Cash on completion</option>
+      </select>
+    </div>
+    <div class="card" style="background:var(--surface2);margin-bottom:16px">
+      <div class="invoice-row"><span>Estimated service charge</span><span id="b-charge"></span></div>
+      <div class="invoice-row"><span>Cooperative fee (8%, disclosed transparently)</span><span id="b-fee"></span></div>
+      <div class="invoice-row invoice-total"><span>Estimated total</span><span id="b-total"></span></div>
+    </div>
+    <button class="btn cat-btn-primary btn-block" type="submit">Confirm Booking</button>
+  </form>
+</div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { getWorkerById, getWorkers, findMatches, createBooking, currentUser, requireAuth } from "./js/store.js";
+import { getCategoryConfig } from "./js/categoryConfig.js";
+import { applyCategoryTheme, resetCategoryTheme } from "./js/theme.js";
+import { money, verificationBadge, qs } from "./js/ui.js";
+
+let worker = getWorkerById(qs("worker"));
+if (!worker && qs("category")) {
+  const matches = findMatches({ category: qs("category"), verifiedOnly: true });
+  worker = matches[0];
+}
+if (!worker) {
+  worker = getWorkers().find(w => w.verificationStatus === "verified");
+}
+const user = currentUser();
+const summary = document.getElementById("worker-summary");
+const isEmergency = qs("emergency") === "1";
+let cfg = null;
+
+if (!worker) {
+  summary.innerHTML = `<div class="empty-state">No workers available. <a href="marketplace.html">Browse Marketplace →</a></div>`;
+} else {
+  cfg = getCategoryConfig(worker.category);
+  applyCategoryTheme(cfg.theme);
+  if (isEmergency) document.getElementById("page-title").textContent = `Emergency ${cfg.label} Booking`;
+
+  summary.innerHTML = `
+    <div style="display:flex;gap:14px;align-items:center">
+      <div class="avatar" style="--avatar-color:var(--cat-accent, var(--coop-teal))">${worker.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+      <div>
+        <b>${worker.name}</b> ${verificationBadge(worker.verificationStatus)}
+        <div style="color:var(--muted);font-size:0.85rem">${cfg.icon} ${cfg.label} · ${money(worker.expectedRate)} approx.</div>
+      </div>
+    </div>`;
+  const fee = Math.round(worker.expectedRate * 0.08);
+  document.getElementById("b-charge").textContent = money(worker.expectedRate);
+  document.getElementById("b-fee").textContent = money(fee);
+  document.getElementById("b-total").textContent = money(worker.expectedRate + fee);
+  document.getElementById("b-date").min = new Date().toISOString().slice(0, 10);
+
+  // Render this category's dynamic booking questions — no irrelevant fields shown.
+  const fieldsBox = document.getElementById("dynamic-fields");
+  fieldsBox.innerHTML = (cfg.bookingFields || []).map(f => {
+    const id = `df-${f.name}`;
+    if (f.type === "select") {
+      return `<div class="form-group dyn-field"><label>${f.label}</label>
+        <select class="form-control" id="${id}" data-field="${f.name}">
+          <option value="">Select…</option>
+          ${f.options.map(o => `<option value="${o}">${o}</option>`).join("")}
+        </select></div>`;
+    }
+    if (f.type === "textarea") {
+      return `<div class="form-group dyn-field"><label>${f.label}</label><textarea class="form-control" id="${id}" data-field="${f.name}"></textarea></div>`;
+    }
+    return `<div class="form-group dyn-field"><label>${f.label}</label><input class="form-control" id="${id}" data-field="${f.name}" /></div>`;
+  }).join("");
+}
+
+document.getElementById("booking-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!requireAuth("customer")) return;
+  if (!worker) return;
+
+  const details = {};
+  document.querySelectorAll("#dynamic-fields [data-field]").forEach(el => { details[el.dataset.field] = el.value; });
+  const photo = document.getElementById("b-photo").value.trim();
+  if (photo) details.referencePhoto = photo;
+
+  const booking = createBooking({
+    customerId: user.id,
+    customerName: user.name,
+    workerId: worker.id,
+    category: worker.category,
+    date: document.getElementById("b-date").value,
+    time: document.getElementById("b-time").value,
+    address: document.getElementById("b-address").value.trim(),
+    description: document.getElementById("b-desc").value.trim(),
+    details,
+    paymentMethod: document.getElementById("b-payment").value,
+    serviceCharge: worker.expectedRate,
+    isEmergency,
+  });
+  resetCategoryTheme();
+  location.href = `payment.html?booking=${booking.id}`;
+});
+window.addEventListener("beforeunload", resetCategoryTheme);
+</script>
+</body>
+</html>

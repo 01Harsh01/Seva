@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.dataset.dashboard = "1";</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Bookings — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section">
+  <h1 style="font-weight:800;margin-bottom:16px">My Bookings</h1>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="active">Active</button>
+    <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn" data-tab="payments">Payments</button>
+  </div>
+  <div class="tab-panel active" id="tab-active"></div>
+  <div class="tab-panel" id="tab-history"></div>
+  <div class="tab-panel" id="tab-payments"></div>
+</div>
+
+<!-- Rating modal -->
+<dialog id="rate-modal" style="border:none;border-radius:16px;padding:0;max-width:420px;width:90%">
+  <form class="card" id="rate-form" style="margin:0">
+    <h3 style="margin-bottom:12px">Rate this service</h3>
+    <div class="form-group"><label>Overall rating</label>
+      <select class="form-control" id="r-overall"><option value="5">★★★★★ Excellent</option><option value="4">★★★★☆ Good</option><option value="3">★★★☆☆ Okay</option><option value="2">★★☆☆☆ Poor</option><option value="1">★☆☆☆☆ Very poor</option></select>
+    </div>
+    <div class="form-group"><label>Comment</label><textarea class="form-control" id="r-comment" placeholder="How was the service?"></textarea></div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-block">Submit Rating</button>
+      <button type="button" class="btn btn-ghost" id="rate-cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { requireAuth, currentUser, getBookingsForCustomer, addReview, fileDispute, getPayments, updateBookingStatus } from "./js/store.js";
+import { money, badge } from "./js/ui.js";
+
+if (!requireAuth("customer")) throw new Error("redirecting");
+const user = currentUser();
+
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+}));
+if (location.hash === "#payments") document.querySelector('[data-tab="payments"]').click();
+
+const statusTone = { requested: "warn", accepted: "info", scheduled: "info", in_progress: "info", completed: "success", rejected: "danger", cancelled: "muted" };
+
+function renderActive() {
+  const bookings = getBookingsForCustomer(user.id).filter(b => !["completed", "cancelled", "rejected"].includes(b.status));
+  const el = document.getElementById("tab-active");
+  if (bookings.length === 0) {
+    el.innerHTML = `<div class="empty-state">No active bookings. <a href="marketplace.html" style="color:var(--coop-teal-dark)">Find a service →</a></div>`;
+    return;
+  }
+  
+  const topActive = bookings[0];
+  const bannerHTML = `
+    <div style="background:linear-gradient(135deg,var(--coop-teal-dark),var(--coop-teal));color:#fff;border-radius:14px;padding:16px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;box-shadow:var(--shadow-md)">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:1.1rem">
+          <span class="live-beacon"></span> Active Booking: ${topActive.workerName} (${topActive.category})
+        </div>
+        <div style="font-size:0.85rem;opacity:0.92;margin-top:2px">Status: <b>${topActive.status.replace("_"," ").toUpperCase()}</b> · Worker telemetry & live route available</div>
+      </div>
+      <a class="btn btn-sm" style="background:#fff;color:var(--coop-teal-dark);font-weight:700" href="track.html?booking=${topActive.id}">📍 Track Live Location & ETA →</a>
+    </div>
+  `;
+  
+  el.innerHTML = bannerHTML + `<div class="grid grid-2">${bookings.map(b => bookingCard(b)).join("")}</div>`;
+}
+function renderHistory() {
+  const bookings = getBookingsForCustomer(user.id).filter(b => ["completed", "cancelled", "rejected"].includes(b.status));
+  const el = document.getElementById("tab-history");
+  el.innerHTML = bookings.length === 0 ? `<div class="empty-state">No past bookings yet.</div>` :
+    `<div class="grid grid-2">${bookings.map(b => bookingCard(b)).join("")}</div>`;
+}
+function renderPayments() {
+  const bookingIds = new Set(getBookingsForCustomer(user.id).map(b => b.id));
+  const payments = getPayments().filter(p => bookingIds.has(p.bookingId)).sort((a,b) => b.createdAt - a.createdAt);
+  const el = document.getElementById("tab-payments");
+  el.innerHTML = payments.length === 0 ? `<div class="empty-state">No payments yet.</div>` : `
+    <table class="hs-table"><thead><tr><th>Date</th><th>Transaction</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>${payments.map(p => `<tr><td>${new Date(p.createdAt).toLocaleDateString()}</td><td>${p.transactionId}</td><td>${p.method}</td><td>${money(p.amount)}</td><td>${badge(p.status, p.status === "success" ? "success" : p.status === "failed" ? "danger" : "warn")}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function bookingCard(b) {
+  const isActive = !["completed","cancelled","rejected"].includes(b.status);
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:start">
+      <div><b>${b.workerName}</b><div style="color:var(--muted);font-size:0.85rem">${b.category} · ${b.date} ${b.time}</div></div>
+      ${badge(b.status.replace("_"," "), statusTone[b.status] || "muted")}
+    </div>
+    ${b.isEmergency ? badge("EMERGENCY", "danger") : ""}
+    <p style="font-size:0.85rem;color:var(--muted);margin-top:8px">📍 ${b.address}</p>
+    <p style="font-size:0.85rem;margin-top:4px">${money(b.serviceCharge)} · ${b.paymentMethod}</p>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      ${isActive ? `<a class="btn btn-primary btn-sm" href="track.html?booking=${b.id}">📍 Track Worker & ETA</a>` : ""}
+      <a class="btn btn-ghost btn-sm" href="invoice.html?booking=${b.id}">Invoice</a>
+      ${b.status === "completed" ? `<button class="btn btn-primary btn-sm rate-btn" data-id="${b.id}" data-worker="${b.workerId}">Rate Worker</button>` : ""}
+      ${isActive ? `<button class="btn btn-ghost btn-sm dispute-btn" data-id="${b.id}">Report a Problem</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function renderAll() { renderActive(); renderHistory(); renderPayments(); attachHandlers(); }
+
+let ratingBookingId = null, ratingWorkerId = null;
+function attachHandlers() {
+  document.querySelectorAll(".rate-btn").forEach(btn => btn.addEventListener("click", () => {
+    ratingBookingId = btn.dataset.id; ratingWorkerId = btn.dataset.worker;
+    document.getElementById("rate-modal").showModal();
+  }));
+  document.querySelectorAll(".dispute-btn").forEach(btn => btn.addEventListener("click", () => {
+    const reason = prompt("Briefly describe the problem with this booking:");
+    if (reason) { fileDispute({ bookingId: btn.dataset.id, raisedBy: user.id, reason }); alert("Thanks — the cooperative admin team has been notified and will review this."); }
+  }));
+}
+document.getElementById("rate-cancel").addEventListener("click", () => document.getElementById("rate-modal").close());
+document.getElementById("rate-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const overall = Number(document.getElementById("r-overall").value);
+  const res = addReview({
+    bookingId: ratingBookingId, workerId: ratingWorkerId,
+    overall, quality: overall, professionalism: overall, timeliness: overall,
+    comment: document.getElementById("r-comment").value.trim(),
+  });
+  document.getElementById("rate-modal").close();
+  if (!res.success) alert(res.error); else { alert("Thanks for your feedback!"); renderAll(); }
+});
+
+renderAll();
+</script>
+</body>
+</html>

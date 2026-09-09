@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Find a Service — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+<style>
+  .service-card-deep-link {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--coop-teal);
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .service-card-deep-link:hover {
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div id="hs-header"></div>
+
+<div class="container section">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="font-weight:800;margin-bottom:6px">Find a Service</h1>
+      <p style="color:var(--muted)">Search verified workers near you, ranked by skill match, real distance, and cooperative rating.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-ghost btn-sm" href="map.html">🗺️ View Map & Routes</a>
+      <a class="btn btn-amber btn-sm" href="emergency.html">🚨 Emergency Request</a>
+    </div>
+  </div>
+
+  <!-- Featured Service Categories Visual Showcase -->
+  <div class="service-carousel-outer">
+    <div class="service-carousel-header">
+      <span style="font-weight:800;font-size:1rem;color:var(--text)">Browse by Service Category</span>
+      <div class="service-carousel-nav">
+        <button class="carousel-btn" id="scroll-prev" title="Previous categories" aria-label="Scroll left">‹</button>
+        <button class="carousel-btn" id="scroll-next" title="Next categories" aria-label="Scroll right">›</button>
+      </div>
+    </div>
+    <div class="service-carousel" id="service-carousel"></div>
+  </div>
+
+  <!-- Location & Filter Bar -->
+  <div class="filters-bar" style="background:#fff;padding:14px;border-radius:14px;box-shadow:var(--shadow-sm);border:1px solid var(--border-strong);margin-bottom:12px">
+    <input type="text" id="f-search" placeholder="🔍 Search workers or skills (e.g. Wiring, Pipe repair, AC repair)..." style="flex:1;min-width:200px" />
+    <select id="f-category"><option value="">All categories</option></select>
+    
+    <select id="f-city" style="font-weight:600">
+      <option value="">Select City / HQ</option>
+    </select>
+
+    <select id="f-rating">
+      <option value="0">Any rating</option>
+      <option value="3">3★ & up</option>
+      <option value="4">4★ & up</option>
+      <option value="4.5">4.5★ & up</option>
+    </select>
+    <select id="f-price">
+      <option value="">Any price</option>
+      <option value="400">Under ₹400</option>
+      <option value="700">Under ₹700</option>
+      <option value="1000">Under ₹1000</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;white-space:nowrap"><input type="checkbox" id="f-available" /> Available now</label>
+    <button class="btn btn-primary btn-sm" id="f-locate" style="white-space:nowrap">📍 Use GPS</button>
+  </div>
+
+  <div id="loc-banner" style="display:none;background:var(--surface2);padding:10px 16px;border-radius:10px;font-size:0.85rem;margin-bottom:16px;border:1px solid var(--border);align-items:center;justify-content:space-between">
+    <span id="loc-status" style="color:var(--text);font-weight:600"></span>
+    <button class="btn btn-ghost btn-sm" id="clear-loc" style="padding:2px 8px;font-size:0.75rem">Reset Location</button>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div id="results-heading" style="font-weight:800;font-size:1.15rem"></div>
+    <span id="filter-reset-tip" style="font-size:0.82rem;color:var(--muted);display:none">Filtering active · <a href="#" id="reset-cat" style="color:var(--coop-teal);font-weight:700">Show all workers</a></span>
+  </div>
+
+  <div class="grid grid-3" id="results"></div>
+</div>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import { CATEGORIES, CITY_PRESETS, findMatches, seedDemoData, resetDemoData, getWorkers } from "./js/store.js";
+import { getActiveCategoryConfigs, getCategoryConfig } from "./js/categoryConfig.js";
+import { money, stars, verificationBadge, qs } from "./js/ui.js";
+
+// Ensure seed data is initialized — force reseed if workers list is empty (handles corrupted localStorage)
+seedDemoData();
+if (getWorkers().length === 0) {
+  console.warn("[HomeSync] Workers list empty — force-reseeding demo data");
+  resetDemoData();
+}
+
+// Safety: if animation system stalls and leaves cards invisible, force-show after 2s
+setTimeout(() => {
+  document.querySelectorAll(".reveal:not(.in-view)").forEach(el => el.classList.add("in-view"));
+}, 2000);
+
+const catSel = document.getElementById("f-category");
+catSel.innerHTML += CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join("");
+
+const citySel = document.getElementById("f-city");
+citySel.innerHTML += CITY_PRESETS.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+const initialCat = qs("category");
+if (initialCat) catSel.value = initialCat;
+
+let userLoc = null;
+let userLocName = "Guwahati (HQ Demo)";
+
+// Populate Visual Carousel
+const configs = getActiveCategoryConfigs();
+const carousel = document.getElementById("service-carousel");
+
+carousel.innerHTML = configs.map(c => {
+  const isSel = (catSel.value === c.id);
+  const minPrice = (c.services && c.services.length) ? Math.min(...c.services.map(s => s.price || c.rateMin || 300)) : (c.rateMin || 300);
+  const imgPath = c.image || `assets/services/${c.id}.jpg`;
+  
+  return `
+    <div class="service-visual-card ${isSel ? "selected" : ""}" data-id="${c.id}">
+      <div class="service-card-img-wrap">
+        <img src="${imgPath}" alt="${c.label}" class="service-card-img" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'240\\' height=\\'140\\'><rect fill=\\'%230f766e\\' width=\\'240\\' height=\\'140\\'/><text fill=\\'white\\' font-size=\\'20\\' x=\\'50%\\' y=\\'50%\\' text-anchor=\\'middle\\'>${c.icon} ${c.label}</text></svg>'" />
+        <div class="service-card-badge">${c.icon} ${c.label}</div>
+      </div>
+      <div class="service-card-body">
+        <div>
+          <div class="service-card-title">${c.label}</div>
+          <div class="service-card-tagline">${c.tagline || (c.description ? c.description.slice(0, 48) + '...' : 'Verified service')}</div>
+        </div>
+        <div class="service-card-footer">
+          <span class="service-card-price">Starts ₹${minPrice}</span>
+          <a class="service-card-deep-link" href="category.html?category=${c.id}" onclick="event.stopPropagation()">Explore →</a>
+        </div>
+      </div>
+    </div>
+  `;
+}).join("");
+
+// Carousel Scroll Navigation
+document.getElementById("scroll-prev")?.addEventListener("click", () => {
+  carousel.scrollBy({ left: -260, behavior: "smooth" });
+});
+document.getElementById("scroll-next")?.addEventListener("click", () => {
+  carousel.scrollBy({ left: 260, behavior: "smooth" });
+});
+
+// Carousel Card Click: filters results & toggles active card
+carousel.querySelectorAll(".service-visual-card").forEach(card => {
+  card.addEventListener("click", (e) => {
+    const catId = card.dataset.id;
+    if (catSel.value === catId) {
+      catSel.value = "";
+    } else {
+      catSel.value = catId;
+    }
+    updateCarouselSelection();
+    render();
+  });
+});
+
+function updateCarouselSelection() {
+  const current = catSel.value;
+  carousel.querySelectorAll(".service-visual-card").forEach(card => {
+    if (card.dataset.id === current) {
+      card.classList.add("selected");
+    } else {
+      card.classList.remove("selected");
+    }
+  });
+  const resetTip = document.getElementById("filter-reset-tip");
+  if (resetTip) resetTip.style.display = current ? "inline" : "none";
+}
+
+document.getElementById("reset-cat")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  catSel.value = "";
+  updateCarouselSelection();
+  render();
+});
+
+function render() {
+  updateCarouselSelection();
+  const category = catSel.value || null;
+  const minRating = Number(document.getElementById("f-rating")?.value || 0);
+  const maxPrice = Number(document.getElementById("f-price")?.value) || null;
+  const availableOnly = document.getElementById("f-available")?.checked || false;
+  const search = (document.getElementById("f-search")?.value || "").trim().toLowerCase();
+
+  let list = findMatches({
+    category,
+    lat: userLoc?.lat,
+    lng: userLoc?.lng,
+    minRating,
+    maxPrice,
+    availableOnly,
+    verifiedOnly: true,
+  });
+
+  if (search) {
+    list = list.filter(w => (w.name || "").toLowerCase().includes(search) || ((w.skills || []).some(s => (s || "").toLowerCase().includes(search))));
+  }
+
+  const heading = document.getElementById("results-heading");
+  if (heading) {
+    heading.textContent = userLoc ? `Verified Workers Near ${userLocName} (${list.length})` : `Verified Cooperative Workers (${list.length})`;
+  }
+
+  const results = document.getElementById("results");
+  if (!results) return;
+
+  if (list.length === 0) {
+    results.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No verified workers match these filters yet. Try widening your search or selecting another category.</div>`;
+    return;
+  }
+
+  results.innerHTML = list.map(w => {
+    const cat = CATEGORIES.find(c => c.id === w.category);
+    const distText = (w.distanceKm !== null && w.distanceKm !== undefined) ? `${w.distanceKm.toFixed(1)} km away` : "Guwahati area";
+    const etaMin = (w.distanceKm !== null && w.distanceKm !== undefined) ? Math.max(3, Math.round(w.distanceKm * 3.5)) : 14;
+    const accentColor = getCategoryConfig(w.category)?.theme?.accent || "var(--coop-teal)";
+    const initials = (w.name || "Worker").split(" ").map(n=>n[0]).join("").slice(0,2);
+    
+    return `
+    <div class="card worker-card" style="display:flex;flex-direction:column;justify-content:space-between">
+      <div>
+        <a href="worker-profile.html?id=${w.id}" style="text-decoration:none;color:inherit;display:block">
+          <div class="worker-card-top">
+            <div class="avatar" style="--avatar-color:${accentColor}">${initials}</div>
+            <div>
+              <div class="worker-name">${w.name}</div>
+              <div class="worker-meta">${cat?.icon || ""} ${cat?.label || w.category} · ${w.experience || 1} yrs exp</div>
+            </div>
+          </div>
+        </a>
+        <div style="margin:8px 0;display:flex;gap:6px;flex-wrap:wrap">
+          ${verificationBadge(w.verificationStatus || "verified")}
+          ${w.availability === "available" ? '<span class="badge badge-success">Available Now</span>' : '<span class="badge badge-muted">Busy</span>'}
+        </div>
+        <div class="worker-stats">
+          <span>${stars(w.rating || 4.5)} <b>${w.rating || "4.5"}</b> (${w.ratingCount || 12})</span>
+          <span><b>${w.completedJobs || 20}</b> jobs done</span>
+          <span style="color:var(--coop-teal-dark);font-weight:700">📍 ${distText} (~${etaMin} min)</span>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:800;font-size:1.05rem">${money(w.expectedRate || 350)} <small style="font-weight:400;color:var(--muted)">/ visit</small></span>
+          ${userLoc ? `<span class="match-score">${w.matchScore || 90}% match</span>` : `<span class="match-score" style="background:var(--surface2);color:var(--muted)">Coop Verified</span>`}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <a class="btn btn-ghost btn-sm" href="worker-profile.html?id=${w.id}">Profile</a>
+          <a class="btn btn-primary btn-sm" href="booking.html?worker=${w.id}" data-i18n="btn_book_now">Book Now</a>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  
+  import("./js/i18n.js").then(m => m.applyTranslations?.());
+}
+
+// GPS Location detection with high accuracy
+document.getElementById("f-locate")?.addEventListener("click", () => {
+  const banner = document.getElementById("loc-banner");
+  const status = document.getElementById("loc-status");
+  if (banner) banner.style.display = "flex";
+  
+  if (!navigator.geolocation) {
+    if (status) status.textContent = "Geolocation isn't supported in this browser.";
+    return;
+  }
+  
+  if (status) status.innerHTML = `<span class="live-beacon"></span> Detecting precise GPS coordinates...`;
+  
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      userLocName = "Your GPS Location";
+      
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${userLoc.lat}&lon=${userLoc.lng}&zoom=14`);
+        if (res.ok) {
+          const data = await res.json();
+          const cityPart = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town || data.address?.state || "Your Area";
+          userLocName = cityPart;
+        }
+      } catch (err) {}
+
+      if (status) status.innerHTML = `📍 Active Location: <b>${userLocName}</b> (${userLoc.lat.toFixed(4)}, ${userLoc.lng.toFixed(4)}) — Showing nearby workers with live distance & ETA`;
+      if (citySel) citySel.value = "";
+      render();
+    },
+    (err) => {
+      const preset = CITY_PRESETS[1]; // Bengaluru
+      userLoc = { lat: preset.lat, lng: preset.lng };
+      userLocName = preset.name;
+      if (citySel) citySel.value = preset.id;
+      if (status) status.innerHTML = `📍 GPS permission not granted. Switched to demo city <b>${userLocName}</b>.`;
+      render();
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+});
+
+// City Presets Selector
+citySel?.addEventListener("change", () => {
+  const cityId = citySel.value;
+  const banner = document.getElementById("loc-banner");
+  const status = document.getElementById("loc-status");
+  
+  if (!cityId) {
+    userLoc = null;
+    userLocName = "Guwahati (HQ Demo)";
+    if (banner) banner.style.display = "none";
+    render();
+    return;
+  }
+  
+  const preset = CITY_PRESETS.find(c => c.id === cityId);
+  if (preset) {
+    userLoc = { lat: preset.lat, lng: preset.lng };
+    userLocName = preset.name;
+    if (banner) banner.style.display = "flex";
+    if (status) status.innerHTML = `📍 Active City: <b>${preset.name}</b> — Showing verified workers with estimated arrival times.`;
+    render();
+  }
+});
+
+document.getElementById("clear-loc")?.addEventListener("click", () => {
+  userLoc = null;
+  userLocName = "Guwahati (HQ Demo)";
+  if (citySel) citySel.value = "";
+  const banner = document.getElementById("loc-banner");
+  if (banner) banner.style.display = "none";
+  render();
+});
+
+[catSel, document.getElementById("f-rating"), document.getElementById("f-price"), document.getElementById("f-available")]
+  .forEach(el => el?.addEventListener("change", render));
+document.getElementById("f-search")?.addEventListener("input", render);
+
+render();
+</script>
+</body>
+</html>

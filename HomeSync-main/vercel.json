@@ -1,0 +1,7 @@
+{
+  "cleanUrls": false,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/services/:category", "destination": "/category.html?category=:category" }
+  ]
+}

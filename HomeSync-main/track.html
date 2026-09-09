@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Live Worker Tracking — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  #tracking-map {
+    height: 52vh;
+    min-height: 380px;
+    width: 100%;
+    border-radius: 0 0 16px 16px;
+    border: 1px solid var(--border);
+    z-index: 1;
+  }
+  .track-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 880px) {
+    .track-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="hs-header"></div>
+
+<div class="container section">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div>
+      <a href="customer-dashboard.html" style="font-size:0.85rem;color:var(--muted);display:inline-flex;align-items:center;gap:4px;margin-bottom:4px">← Back to My Bookings</a>
+      <h1 style="font-weight:800;margin:0">Live Worker Tracking</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" id="btn-recenter">🎯 Recenter Map</button>
+      <button class="btn btn-primary btn-sm" id="btn-speed-sim">⚡ Speed up Demo</button>
+    </div>
+  </div>
+
+  <div class="track-grid">
+    <!-- Map & Live Status -->
+    <div>
+      <div class="live-tracker-card">
+        <!-- Dynamic ETA Banner -->
+        <div class="live-eta-banner">
+          <div>
+            <div class="live-eta-time">
+              <span class="live-beacon"></span>
+              <span id="eta-countdown">Arriving in ~8 mins</span>
+            </div>
+            <div class="live-eta-sub" id="eta-details">Estimated arrival at 3:15 PM · 1.6 km away · Moving at 24 km/h</div>
+          </div>
+          <div style="text-align:right">
+            <span class="badge badge-success" style="background:rgba(255,255,255,0.2);color:#fff;border-color:transparent" id="live-stage-badge">On The Way</span>
+          </div>
+        </div>
+
+        <!-- Progress Timeline Stepper -->
+        <div class="tracking-stepper" id="stepper">
+          <div class="tracking-step done">
+            <div class="step-icon">✓</div>
+            <div class="step-label">Confirmed</div>
+          </div>
+          <div class="tracking-step done">
+            <div class="step-icon">✓</div>
+            <div class="step-label">Dispatched</div>
+          </div>
+          <div class="tracking-step active" id="step-onway">
+            <div class="step-icon">🚚</div>
+            <div class="step-label">On The Way</div>
+          </div>
+          <div class="tracking-step" id="step-arrived">
+            <div class="step-icon">📍</div>
+            <div class="step-label">Arrived</div>
+          </div>
+          <div class="tracking-step" id="step-service">
+            <div class="step-icon">🔧</div>
+            <div class="step-label">In Progress</div>
+          </div>
+          <div class="tracking-step" id="step-done">
+            <div class="step-icon">🏁</div>
+            <div class="step-label">Completed</div>
+          </div>
+        </div>
+
+        <!-- Live Leaflet Map -->
+        <div id="tracking-map"></div>
+      </div>
+    </div>
+
+    <!-- Worker & Booking Info Sidebar -->
+    <div>
+      <div class="card" style="margin-bottom:16px;border-radius:16px">
+        <h3 style="font-weight:800;margin-bottom:14px">Assigned Worker</h3>
+        <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
+          <div class="avatar" id="w-avatar" style="--avatar-color:var(--coop-teal);width:52px;height:52px;font-size:1.1rem">RD</div>
+          <div>
+            <div style="font-weight:800;font-size:1.05rem" id="w-name">Loading worker...</div>
+            <div style="font-size:0.82rem;color:var(--muted)" id="w-meta">Cooperative Member</div>
+            <div style="margin-top:2px" id="w-badge"></div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface2);padding:10px 12px;border-radius:10px;font-size:0.85rem;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:var(--muted)">Rating</span>
+            <span id="w-rating">★ 4.9 (24 reviews)</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:var(--muted)">Jobs Completed</span>
+            <span id="w-jobs">38 successful jobs</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Live Telemetry</span>
+            <span style="color:var(--success);font-weight:700">● GPS Active</span>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <button class="btn btn-primary btn-sm btn-block" id="btn-call">📞 Call Worker</button>
+          <button class="btn btn-ghost btn-sm btn-block" id="btn-msg">💬 Message</button>
+        </div>
+        <button class="btn btn-ghost btn-sm btn-block" style="color:var(--danger);border-color:var(--danger-dim)" id="btn-sos">🚨 Cooperative SOS</button>
+      </div>
+
+      <div class="card" style="border-radius:16px">
+        <h3 style="font-weight:800;margin-bottom:10px">Booking Details</h3>
+        <div style="font-size:0.85rem;display:flex;flex-direction:column;gap:8px">
+          <div>
+            <span style="color:var(--muted);display:block;font-size:0.75rem;text-transform:uppercase;font-weight:700">Destination Address</span>
+            <span id="b-address" style="font-weight:600">Loading address...</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Scheduled For</span>
+            <span id="b-time" style="font-weight:600">Today, 3:00 PM</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Service Fee</span>
+            <span id="b-charge" style="font-weight:700">₹450</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--muted)">Payment</span>
+            <span id="b-payment" class="badge badge-success">Paid Online</span>
+          </div>
+        </div>
+        <a class="btn btn-ghost btn-sm btn-block" style="margin-top:14px" id="b-invoice-link" href="#">View Digital Invoice</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module">
+import "./js/ui.js";
+import { getBookings, getWorkers, getCategory, getLiveTrackingState, money, verificationBadge, qs } from "./js/store.js";
+import { getCategoryConfig } from "./js/categoryConfig.js";
+
+// Find booking: from query param or fallback to the most recent active booking
+let bookingId = qs("booking");
+if (!bookingId) {
+  const allBookings = getBookings();
+  const active = allBookings.filter(b => ["requested", "accepted", "scheduled", "in_progress"].includes(b.status));
+  bookingId = (active[active.length - 1] || allBookings[allBookings.length - 1])?.id;
+}
+
+if (!bookingId) {
+  // If no booking exists at all, use demo booking ID
+  bookingId = "demo_booking_1";
+}
+
+let tracking = getLiveTrackingState(bookingId);
+if (!tracking) {
+  // Synthesize a fallback tracking state for seamless demo
+  const worker = getWorkers()[0];
+  tracking = {
+    bookingId,
+    workerId: worker.id,
+    workerName: worker.name,
+    workerPhone: worker.phone || "9876543210",
+    category: worker.category,
+    speedKmh: 26,
+    customerLoc: { lat: worker.lat + 0.018, lng: worker.lng + 0.015, address: "14 Green Park Road, City Center" },
+    workerOrigin: { lat: worker.lat, lng: worker.lng },
+    currentWorkerLoc: { lat: worker.lat + 0.008, lng: worker.lng + 0.007 },
+    progressPct: 45,
+    distanceRemainingKm: 1.5,
+    etaMinutes: 6,
+    etaTimeStr: new Date(Date.now() + 6 * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    stage: "on_the_way",
+    worker,
+    booking: { serviceCharge: worker.expectedRate, date: "Today", time: "3:00 PM", paymentMethod: "online", address: "14 Green Park Road, City Center" }
+  };
+}
+
+// Populate Worker Sidebar
+const cfg = getCategoryConfig(tracking.category);
+document.getElementById("w-avatar").textContent = tracking.workerName.split(" ").map(n=>n[0]).join("").slice(0,2);
+document.getElementById("w-avatar").style.setProperty("--avatar-color", cfg?.theme.accent || "var(--coop-teal)");
+document.getElementById("w-name").textContent = tracking.workerName;
+document.getElementById("w-meta").textContent = `${cfg?.icon || "🔧"} ${cfg?.label || tracking.category} · Cooperative Member`;
+document.getElementById("w-badge").innerHTML = verificationBadge("verified");
+document.getElementById("b-address").textContent = tracking.customerLoc.address || "Client Residence";
+document.getElementById("b-charge").textContent = money(tracking.booking?.serviceCharge || 450);
+document.getElementById("b-time").textContent = `${tracking.booking?.date || "Today"}, ${tracking.booking?.time || "3:00 PM"}`;
+document.getElementById("b-invoice-link").href = `invoice.html?booking=${bookingId}`;
+
+// Initialize Leaflet Map
+const custCoords = [tracking.customerLoc.lat, tracking.customerLoc.lng];
+const workerCoords = [tracking.currentWorkerLoc.lat, tracking.currentWorkerLoc.lng];
+const midCoords = [(custCoords[0] + workerCoords[0]) / 2, (custCoords[1] + workerCoords[1]) / 2];
+
+const map = L.map("tracking-map").setView(midCoords, 14);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 18,
+}).addTo(map);
+
+// Customer Home Pin Icon
+const customerIcon = L.divIcon({
+  className: "custom-map-pin user-dest",
+  html: "🏠",
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+});
+const customerMarker = L.marker(custCoords, { icon: customerIcon }).addTo(map);
+customerMarker.bindPopup(`<b>📍 Service Destination</b><br/>${tracking.customerLoc.address}`);
+
+// Worker Moving Live Pin Icon
+const workerIcon = L.divIcon({
+  className: "custom-map-pin worker-live",
+  html: `${cfg?.icon || "⚡"}`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
+const workerMarker = L.marker(workerCoords, { icon: workerIcon }).addTo(map);
+workerMarker.bindPopup(`<b>${tracking.workerName}</b><br/>${cfg?.label || "Worker"} (On the way)`);
+
+// Route Polyline
+const routeLine = L.polyline([workerCoords, custCoords], {
+  color: "#0F766E",
+  weight: 5,
+  opacity: 0.85,
+  dashArray: "8, 8",
+  lineCap: "round",
+}).addTo(map);
+
+map.fitBounds(L.latLngBounds([custCoords, workerCoords]), { padding: [50, 50] });
+
+// Telemetry Animation Simulation Loop
+let simInterval = null;
+let speedFactor = 1;
+
+function updateLiveState() {
+  // Advance simulated worker position smoothly
+  const step = 0.018 * speedFactor;
+  tracking.progressPct = Math.min(98, tracking.progressPct + step * 100);
+  
+  const prog = tracking.progressPct / 100;
+  const currentLat = tracking.workerOrigin.lat + (tracking.customerLoc.lat - tracking.workerOrigin.lat) * prog;
+  const currentLng = tracking.workerOrigin.lng + (tracking.customerLoc.lng - tracking.workerOrigin.lng) * prog;
+  
+  const distKm = Math.max(0.1, Number((2.8 * (1 - prog)).toFixed(1)));
+  const etaMins = Math.max(1, Math.round((distKm / tracking.speedKmh) * 60));
+  const etaTime = new Date(Date.now() + etaMins * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // Update marker & route line
+  const newPos = [currentLat, currentLng];
+  workerMarker.setLatLng(newPos);
+  routeLine.setLatLngs([newPos, custCoords]);
+
+  // Update ETA Display
+  if (prog >= 0.95) {
+    document.getElementById("eta-countdown").textContent = "Worker Arrived at Location!";
+    document.getElementById("eta-details").textContent = `Worker is at your doorstep · ${tracking.customerLoc.address}`;
+    document.getElementById("live-stage-badge").textContent = "Arrived";
+    document.getElementById("step-onway").className = "tracking-step done";
+    document.getElementById("step-arrived").className = "tracking-step active";
+  } else {
+    document.getElementById("eta-countdown").textContent = `Arriving in ~${etaMins} mins`;
+    document.getElementById("eta-details").textContent = `Estimated arrival at ${etaTime} · ${distKm} km away · Speed ${tracking.speedKmh} km/h`;
+  }
+}
+
+simInterval = setInterval(updateLiveState, 2000);
+
+document.getElementById("btn-recenter").addEventListener("click", () => {
+  map.fitBounds(L.latLngBounds([customerMarker.getLatLng(), workerMarker.getLatLng()]), { padding: [50, 50] });
+});
+
+document.getElementById("btn-speed-sim").addEventListener("click", () => {
+  speedFactor = speedFactor === 1 ? 4 : 1;
+  document.getElementById("btn-speed-sim").textContent = speedFactor === 4 ? "⚡ Running Fast (4x)" : "⚡ Speed up Demo";
+});
+
+// Call / Message Handlers
+document.getElementById("btn-call").addEventListener("click", () => {
+  alert(`📞 Dialing ${tracking.workerName} (+91 ${tracking.workerPhone})...\n(In production, this connects via cooperative masked call routing).`);
+});
+document.getElementById("btn-msg").addEventListener("click", () => {
+  const msg = prompt(`Send a quick message to ${tracking.workerName}:`, "Please ring the bell at flat 302.");
+  if (msg) alert(`✓ Message sent to ${tracking.workerName}: "${msg}"`);
+});
+document.getElementById("btn-sos").addEventListener("click", () => {
+  if (confirm("🚨 Send an emergency priority alert to the Cooperative Safety Team?")) {
+    alert("✓ SOS Alert triggered. A Cooperative Safety Officer has received your location telemetry and will contact you immediately.");
+  }
+});
+</script>
+</body>
+</html>

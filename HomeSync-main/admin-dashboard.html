@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.dataset.dashboard = "1";</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cooperative Admin — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+<div class="container section">
+  <h1 style="font-weight:800;margin-bottom:16px">Cooperative Administration</h1>
+  <div class="grid grid-4" id="stats-grid" style="margin-bottom:24px"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="workers">Workers</button>
+    <button class="tab-btn" data-tab="verification">Verification</button>
+    <button class="tab-btn" data-tab="bookings">Bookings</button>
+    <button class="tab-btn" data-tab="payments">Payments</button>
+    <button class="tab-btn" data-tab="welfare">Welfare</button>
+    <button class="tab-btn" data-tab="forecast">Demand Forecast</button>
+    <button class="tab-btn" data-tab="analytics">AI Workforce</button>
+    <button class="tab-btn" data-tab="disputes">Disputes</button>
+    <button class="tab-btn" data-tab="categories">Categories</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-workers"></div>
+  <div class="tab-panel" id="tab-verification"></div>
+  <div class="tab-panel" id="tab-bookings"></div>
+  <div class="tab-panel" id="tab-payments"></div>
+  <div class="tab-panel" id="tab-welfare"></div>
+  <div class="tab-panel" id="tab-forecast"></div>
+  <div class="tab-panel" id="tab-analytics"></div>
+  <div class="tab-panel" id="tab-disputes"></div>
+  <div class="tab-panel" id="tab-categories"></div>
+</div>
+<div class="footer"><div class="container">HomeSync — Cooperative-owned Digital Service Marketplace</div></div>
+
+<script type="module">
+import "./js/ui.js";
+import {
+  requireAuth, adminStats, getWorkers, setWorkerVerification, getBookings, getPayments,
+  updateWelfare, demandForecast, workforceAllocation, getDisputes, resolveDispute, getCategory
+} from "./js/store.js";
+import { getAllCategoryConfigs, saveCategoryOverride, setCategoryActive, canDeleteCategory } from "./js/categoryConfig.js";
+import { money, badge, verificationBadge, stars } from "./js/ui.js";
+
+if (!requireAuth("admin")) throw new Error("redirecting");
+
+document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+}));
+const hashTab = location.hash.replace("#", "");
+if (hashTab) document.querySelector(`[data-tab="${hashTab}"]`)?.click();
+
+function renderStats() {
+  const s = adminStats();
+  const cards = [
+    ["Total Workers", s.totalWorkers], ["Verified Workers", s.verifiedWorkers],
+    ["Pending Verification", s.pendingVerification], ["Total Customers", s.totalCustomers],
+    ["Active Bookings", s.activeBookings], ["Completed Bookings", s.completedBookings],
+    ["Emergency Requests", s.emergencyRequests], ["Total Revenue", money(s.totalRevenue)],
+  ];
+  document.getElementById("stats-grid").innerHTML = cards.map(([l,v]) => `<div class="card stat-card"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join("");
+}
+
+function renderWorkers() {
+  const workers = getWorkers();
+  document.getElementById("tab-workers").innerHTML = `
+    <table class="hs-table"><thead><tr><th>Name</th><th>Category</th><th>Rating</th><th>Jobs</th><th>Status</th></tr></thead>
+    <tbody>${workers.map(w => `<tr><td>${w.name}</td><td>${getCategory(w.category)?.label}</td><td>${stars(w.rating)} ${w.rating||"—"}</td><td>${w.completedJobs}</td><td>${verificationBadge(w.verificationStatus)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderVerification() {
+  const workers = getWorkers().filter(w => w.verificationStatus !== "verified" && w.verificationStatus !== "rejected");
+  const el = document.getElementById("tab-verification");
+  el.innerHTML = workers.length === 0 ? `<div class="empty-state">No pending verifications 🎉</div>` :
+    `<div class="grid grid-2">${workers.map(w => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between"><b>${w.name}</b>${verificationBadge(w.verificationStatus)}</div>
+        <p style="color:var(--muted);font-size:0.85rem">${getCategory(w.category)?.label} · ${w.experience} yrs · ${w.qualification || "—"}</p>
+        <p style="font-size:0.85rem;margin-top:6px"><b>Certifications:</b> ${w.certifications.join(", ") || "None"}</p>
+        <p style="font-size:0.85rem"><b>Cooperative ID:</b> ${w.cooperativeMemberId}</p>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" data-id="${w.id}" data-status="under_review">Mark Under Review</button>
+          <button class="btn btn-primary btn-sm" data-id="${w.id}" data-status="verified">Verify</button>
+          <button class="btn btn-ghost btn-sm" data-id="${w.id}" data-status="rejected">Reject</button>
+        </div>
+      </div>`).join("")}</div>`;
+  el.querySelectorAll("[data-status]").forEach(btn => btn.addEventListener("click", () => {
+    setWorkerVerification(btn.dataset.id, btn.dataset.status);
+    renderAll();
+  }));
+}
+
+const statusTone = { requested: "warn", accepted: "info", scheduled: "info", in_progress: "info", completed: "success", rejected: "danger", cancelled: "muted" };
+function renderBookings() {
+  const bookings = getBookings().sort((a,b) => b.createdAt - a.createdAt).slice(0, 60);
+  document.getElementById("tab-bookings").innerHTML = `
+    <table class="hs-table"><thead><tr><th>Customer</th><th>Worker</th><th>Category</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>${bookings.map(b => `<tr><td>${b.customerName}</td><td>${b.workerName}</td><td>${b.category}${b.isEmergency?" 🚨":""}</td><td>${b.date}</td><td>${money(b.serviceCharge)}</td><td>${badge(b.status.replace("_"," "), statusTone[b.status]||"muted")}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderPayments() {
+  const payments = getPayments().sort((a,b) => b.createdAt - a.createdAt).slice(0, 60);
+  document.getElementById("tab-payments").innerHTML = `
+    <table class="hs-table"><thead><tr><th>Transaction</th><th>Method</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>${payments.map(p => `<tr><td>${p.transactionId}</td><td>${p.method}</td><td>${money(p.amount)}</td><td>${badge(p.status, p.status==="success"?"success":p.status==="failed"?"danger":"warn")}</td><td>${new Date(p.createdAt).toLocaleDateString()}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderWelfare() {
+  const workers = getWorkers();
+  const covered = workers.filter(w => w.welfare.insurance === "covered").length;
+  const coveragePct = workers.length ? Math.round((covered / workers.length) * 100) : 0;
+  const el = document.getElementById("tab-welfare");
+  el.innerHTML = `
+    <div class="grid grid-4" style="margin-bottom:16px">
+      <div class="card stat-card"><div class="stat-value">${workers.length}</div><div class="stat-label">Workers covered by cooperative</div></div>
+      <div class="card stat-card"><div class="stat-value">${covered}</div><div class="stat-label">Insurance covered</div></div>
+      <div class="card stat-card"><div class="stat-value">${workers.length - covered}</div><div class="stat-label">Pending coverage</div></div>
+      <div class="card stat-card"><div class="stat-value">${workers.filter(w=>w.welfare.scheme==="enrolled").length}</div><div class="stat-label">Enrolled in welfare scheme</div></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:2px"><b>Overall insurance coverage</b><span>${coveragePct}%</span></div>
+      <div class="hs-bar-track" style="--bar-pct:${coveragePct}%"><div class="hs-bar-fill" style="background:var(--success)"></div></div>
+    </div>
+    <table class="hs-table"><thead><tr><th>Worker</th><th>Insurance</th><th>Scheme</th><th>Action</th></tr></thead>
+    <tbody>${workers.map(w => `<tr><td>${w.name}</td><td>${badge(w.welfare.insurance, w.welfare.insurance==="covered"?"success":"warn")}</td><td>${badge(w.welfare.scheme, w.welfare.scheme==="enrolled"?"success":"warn")}</td>
+      <td><button class="btn btn-ghost btn-sm" data-cover="${w.id}">${w.welfare.insurance === "covered" ? "Mark Pending" : "Mark Covered"}</button></td></tr>`).join("")}</tbody></table>`;
+  el.querySelectorAll("[data-cover]").forEach(btn => btn.addEventListener("click", () => {
+    const w = workers.find(x => x.id === btn.dataset.cover);
+    updateWelfare(w.id, { insurance: w.welfare.insurance === "covered" ? "pending" : "covered" });
+    renderAll();
+  }));
+}
+
+function renderForecast() {
+  const forecast = demandForecast();
+  const maxBookings = Math.max(1, ...forecast.map(f => f.recentBookings));
+  document.getElementById("tab-forecast").innerHTML = `
+    <p class="ai-note" style="margin-bottom:16px">These figures come from a statistical trend model over recent booking history (not a trained ML model). The architecture is ready for a proper ML model once more production data is collected.</p>
+    <div class="grid grid-2">${forecast.map(f => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><b>${f.icon} ${f.label}</b><div style="color:var(--muted);font-size:0.82rem">${f.recentBookings} bookings in last 14 days · ${f.growthPct >= 0 ? "+" : ""}${f.growthPct}% vs prior period</div></div>
+          ${badge(f.level, f.level==="Very High"||f.level==="High" ? "danger" : f.level==="Medium" ? "warn" : "muted")}
+        </div>
+        <div class="hs-bar-track" style="--bar-pct:${Math.round((f.recentBookings / maxBookings) * 100)}%"><div class="hs-bar-fill" style="background:${f.level==="Very High"||f.level==="High" ? "var(--danger)" : f.level==="Medium" ? "var(--coop-amber)" : "var(--muted)"}"></div></div>
+      </div>`).join("")}</div>`;
+}
+
+function renderAnalytics() {
+  const recs = workforceAllocation();
+  document.getElementById("tab-analytics").innerHTML = `
+    <p class="ai-note" style="margin-bottom:16px">AI-assisted recommendations — these are suggestions for the cooperative administrator to review, not autonomous actions.</p>
+    <div class="card"><h3 style="margin-bottom:10px">Recommended Workforce Allocation</h3>
+      <ul style="padding-left:18px;line-height:1.9">${recs.map(r => `<li>${r}</li>`).join("")}</ul>
+    </div>`;
+}
+
+function renderDisputes() {
+  const disputes = getDisputes();
+  const el = document.getElementById("tab-disputes");
+  el.innerHTML = disputes.length === 0 ? `<div class="empty-state">No disputes filed.</div>` :
+    disputes.map(d => `
+      <div class="card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between"><b>Booking ${d.bookingId}</b>${badge(d.status, d.status==="open"?"warn":"success")}</div>
+        <p style="font-size:0.9rem;margin-top:6px">${d.reason}</p>
+        ${d.status === "open" ? `<button class="btn btn-primary btn-sm" data-resolve="${d.id}" style="margin-top:8px">Mark Resolved</button>` : `<p style="font-size:0.85rem;color:var(--muted);margin-top:6px">Resolution: ${d.resolution}</p>`}
+      </div>`).join("");
+  el.querySelectorAll("[data-resolve]").forEach(btn => btn.addEventListener("click", () => {
+    const note = prompt("Resolution notes:") || "Resolved by cooperative admin.";
+    resolveDispute(btn.dataset.resolve, note);
+    renderAll();
+  }));
+}
+
+function renderCategories() {
+  const bookings = getBookings();
+  const configs = getAllCategoryConfigs();
+  const el = document.getElementById("tab-categories");
+  el.innerHTML = `
+    <p class="ai-note" style="margin-bottom:16px">Edits here update the live category page (hero theme, tagline, description) immediately — no code changes needed. Services, FAQs, features, testimonials, emergency types and booking questions are editable as JSON for now (Advanced editor).</p>
+    <div class="grid grid-2">${configs.map(c => `
+      <div class="card" style="border-top:4px solid ${c.theme.accent}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b>${c.icon} ${c.label}</b>
+          ${badge(c.active ? "Active" : "Deactivated", c.active ? "success" : "muted")}
+        </div>
+        <div class="form-group" style="margin-top:10px"><label>Tagline</label><input class="form-control" data-cat="${c.id}" data-field="tagline" value="${c.tagline}" /></div>
+        <div class="form-group"><label>Description</label><textarea class="form-control" data-cat="${c.id}" data-field="description">${c.description}</textarea></div>
+        <div class="form-group"><label>Accent color</label><input type="color" data-cat="${c.id}" data-field="accent" value="${c.theme.accent}" style="width:60px;height:36px;padding:2px" /></div>
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;font-size:0.85rem;color:var(--muted)">Advanced: services / FAQs / features / testimonials / emergency types / booking fields (JSON)</summary>
+          <textarea class="form-control" data-cat="${c.id}" data-field="advanced" style="min-height:160px;font-family:monospace;font-size:0.78rem;margin-top:8px">${JSON.stringify({ services: c.services, faqs: c.faqs, features: c.features, testimonials: c.testimonials, emergencyTypes: c.emergencyTypes, bookingFields: c.bookingFields }, null, 2)}</textarea>
+        </details>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" data-save="${c.id}">Save Changes</button>
+          <button class="btn btn-ghost btn-sm" data-toggle="${c.id}">${c.active ? "Deactivate" : "Reactivate"}</button>
+        </div>
+        ${!canDeleteCategory(c.id, bookings) ? `<p style="font-size:0.78rem;color:var(--muted);margin-top:6px">This category has existing bookings, so it can only be deactivated (never deleted) to preserve history.</p>` : ""}
+      </div>`).join("")}</div>`;
+
+  el.querySelectorAll("[data-save]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.save;
+    const card = btn.closest(".card");
+    const tagline = card.querySelector('[data-field="tagline"]').value;
+    const description = card.querySelector('[data-field="description"]').value;
+    const accent = card.querySelector('[data-field="accent"]').value;
+    const advancedRaw = card.querySelector('[data-field="advanced"]').value;
+    let advanced = {};
+    try { advanced = JSON.parse(advancedRaw); }
+    catch { alert("The advanced JSON isn't valid — fix the syntax and try saving again. Tagline/description/color changes were not saved either, so nothing is half-applied."); return; }
+    saveCategoryOverride(id, { tagline, description, theme: { accent }, ...advanced });
+    renderAll();
+  }));
+  el.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => {
+    const id = btn.dataset.toggle;
+    const cfg = configs.find(c => c.id === id);
+    setCategoryActive(id, !cfg.active);
+    renderAll();
+  }));
+}
+
+function renderAll() {
+  renderStats(); renderWorkers(); renderVerification(); renderBookings(); renderPayments();
+  renderWelfare(); renderForecast(); renderAnalytics(); renderDisputes(); renderCategories();
+}
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Register — HomeSync</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="marketplace.css" />
+</head>
+<body>
+<div id="hs-header"></div>
+
+<div class="container">
+  <div class="card auth-card" style="max-width:560px">
+    <h2 style="margin-bottom:18px;font-weight:800">Create your account</h2>
+    <div class="auth-tabs" id="role-tabs">
+      <button class="active" data-role="customer">I need a service</button>
+      <button data-role="worker">I'm a worker</button>
+    </div>
+
+    <!-- Customer form -->
+    <form id="customer-form">
+      <div class="form-group"><label>Full name</label><input class="form-control" id="c-name" required /></div>
+      <div class="form-group"><label>Email</label><input class="form-control" type="email" id="c-email" required /></div>
+      <div class="form-group"><label>Phone</label><input class="form-control" id="c-phone" required /></div>
+      <div class="form-group"><label>Password</label><input class="form-control" type="password" id="c-password" required minlength="6" /></div>
+      <p id="c-error" style="color:var(--danger);font-size:0.85rem;display:none"></p>
+      <button class="btn btn-primary btn-block" type="submit">Create account</button>
+    </form>
+
+    <!-- Worker form -->
+    <form id="worker-form" style="display:none">
+      <div class="form-group"><label>Full name</label><input class="form-control" id="w-name" required /></div>
+      <div class="form-group"><label>Email</label><input class="form-control" type="email" id="w-email" required /></div>
+      <div class="form-group"><label>Phone</label><input class="form-control" id="w-phone" required /></div>
+      <div class="form-group"><label>Password</label><input class="form-control" type="password" id="w-password" required minlength="6" /></div>
+      <div class="form-group"><label>Address / area</label><input class="form-control" id="w-address" placeholder="e.g. Ganeshguri, Guwahati" required /></div>
+      <div class="form-group"><label>Primary category</label>
+        <select class="form-control" id="w-category" required></select>
+      </div>
+      <div class="form-group"><label>Skills</label><div class="chip-select" id="w-skills"></div></div>
+      <div class="form-group"><label>Years of experience</label><input class="form-control" type="number" min="0" id="w-experience" required /></div>
+      <div class="form-group"><label>Qualification</label><input class="form-control" id="w-qualification" placeholder="e.g. ITI Certified, Diploma" /></div>
+      <div class="form-group"><label>Certification (name only — upload wiring is a placeholder for the demo)</label><input class="form-control" id="w-cert" placeholder="e.g. Electrical Trade Certificate" /></div>
+      <div class="form-group"><label>Languages spoken</label><input class="form-control" id="w-languages" placeholder="e.g. Assamese, Hindi, English" /></div>
+      <div class="form-group"><label>Service radius (km)</label><input class="form-control" type="number" min="1" id="w-radius" value="10" /></div>
+      <div class="form-group"><label>Expected rate (₹ per visit)</label><input class="form-control" type="number" min="0" id="w-rate" required /></div>
+      <div class="form-group"><label>Emergency contact number</label><input class="form-control" id="w-emergency" /></div>
+      <p class="ai-note">Your profile will be created with status <b>"Pending"</b> until a cooperative administrator verifies your certifications.</p>
+      <p id="w-error" style="color:var(--danger);font-size:0.85rem;display:none"></p>
+      <button class="btn btn-primary btn-block" type="submit">Submit for verification</button>
+    </form>
+
+    <p style="margin-top:16px;font-size:0.85rem;text-align:center;color:var(--muted)">
+      Already have an account? <a href="login.html" style="color:var(--coop-teal-dark);font-weight:600">Log in</a>
+    </p>
+  </div>
+</div>
+
+<script type="module">
+import "./js/ui.js";
+import { CATEGORIES, registerCustomer, registerWorker, currentUser, mirrorRemoteSession } from "./js/store.js";
+import { api } from "./js/api.js";
+
+if (currentUser()) location.href = "index.html";
+
+const catSel = document.getElementById("w-category");
+catSel.innerHTML = CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join("");
+
+function renderSkills() {
+  const cat = CATEGORIES.find(c => c.id === catSel.value);
+  const box = document.getElementById("w-skills");
+  box.innerHTML = cat.skills.map(s => `<div class="chip" data-skill="${s}">${s}</div>`).join("");
+  box.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => chip.classList.toggle("selected")));
+}
+catSel.addEventListener("change", renderSkills);
+renderSkills();
+
+const params = new URLSearchParams(location.search);
+const tabs = document.querySelectorAll("#role-tabs button");
+function showRole(role) {
+  tabs.forEach(b => b.classList.toggle("active", b.dataset.role === role));
+  document.getElementById("customer-form").style.display = role === "customer" ? "block" : "none";
+  document.getElementById("worker-form").style.display = role === "worker" ? "block" : "none";
+}
+tabs.forEach(btn => btn.addEventListener("click", () => showRole(btn.dataset.role)));
+if (params.get("as") === "worker") showRole("worker");
+
+document.getElementById("customer-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = document.getElementById("c-name").value.trim();
+  const email = document.getElementById("c-email").value.trim();
+  const phone = document.getElementById("c-phone").value.trim();
+  const password = document.getElementById("c-password").value;
+  const errEl = document.getElementById("c-error");
+
+  // Real backend first (creates the account in Postgres); falls
+  // back to local demo mode if the backend isn't reachable. Worker
+  // registration below stays local-only for now — see README's
+  // migration-status notes on why that's a separate step.
+  try {
+    const user = await api.register({ role: "customer", name, email, phone, password });
+    mirrorRemoteSession(user);
+    location.href = "marketplace.html";
+  } catch (err) {
+    if (err.offline) {
+      const res = registerCustomer({ name, email, phone, password });
+      if (!res.success) { errEl.textContent = res.error; errEl.style.display = "block"; return; }
+      location.href = "marketplace.html";
+    } else {
+      errEl.textContent = err.message;
+      errEl.style.display = "block";
+    }
+  }
+});
+
+document.getElementById("worker-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const skills = [...document.querySelectorAll("#w-skills .chip.selected")].map(c => c.dataset.skill);
+  if (skills.length === 0) { const el = document.getElementById("w-error"); el.textContent = "Please select at least one skill."; el.style.display = "block"; return; }
+  // Demo geocoding: jitter around Guwahati since there's no real geocoding API wired up
+  const lat = 26.1445 + (Math.random() - 0.5) * 0.15;
+  const lng = 91.7362 + (Math.random() - 0.5) * 0.15;
+  const res = registerWorker({
+    name: document.getElementById("w-name").value.trim(),
+    email: document.getElementById("w-email").value.trim(),
+    phone: document.getElementById("w-phone").value.trim(),
+    password: document.getElementById("w-password").value,
+    address: document.getElementById("w-address").value.trim(),
+    lat, lng,
+    category: catSel.value,
+    skills,
+    experience: document.getElementById("w-experience").value,
+    qualification: document.getElementById("w-qualification").value.trim(),
+    certifications: document.getElementById("w-cert").value.trim() ? [document.getElementById("w-cert").value.trim()] : [],
+    languages: document.getElementById("w-languages").value.split(",").map(s => s.trim()).filter(Boolean),
+    serviceRadiusKm: document.getElementById("w-radius").value,
+    expectedRate: document.getElementById("w-rate").value,
+    emergencyContact: document.getElementById("w-emergency").value.trim(),
+  });
+  if (!res.success) { const el = document.getElementById("w-error"); el.textContent = res.error; el.style.display = "block"; return; }
+  location.href = "worker-dashboard.html";
+});
+</script>
+</body>
+</html>

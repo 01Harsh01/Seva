@@ -1,0 +1,21 @@
+# netlify.toml — Netlify deployment configuration for HomeSync
+# Static site — no build step, no server-side secrets required.
+# (A real Razorpay integration would add a serverless function under
+#  netlify/functions/ and set RAZORPAY_KEY_SECRET as a Netlify env var —
+#  never in frontend code.)
+
+[build]
+  publish = "."
+
+# Clean, category-aware URLs (Section 20 of the SIH-89 spec):
+# /services/plumbing -> category.html?category=plumbing, URL stays
+# clean in the browser (200 rewrite, not a redirect).
+[[redirects]]
+  from   = "/services/:category"
+  to     = "/category.html?category=:category"
+  status = 200
+
+[[redirects]]
+  from   = "/*"
+  to     = "/404.html"
+  status = 404
