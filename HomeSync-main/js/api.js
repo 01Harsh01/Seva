@@ -17,7 +17,11 @@
 //  it defaults to http://localhost:4000 for local development.
 // ============================================================
 
-const BASE = window.HS_API_BASE || "http://localhost:4000";
+const BASE =
+  window.HS_API_BASE ||
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:4000"
+    : "https://seva-uxpe.onrender.com");
 const TOKEN_KEY = "hs_api_token";
 
 export function getToken() {

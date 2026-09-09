@@ -23,6 +23,17 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }));
 
+app.get("/", (req, res) => res.json({
+  message: "HomeSync Cooperative Marketplace REST API",
+  status: "online",
+  endpoints: {
+    health: "/api/health",
+    workers: "/api/workers",
+    auth: "/api/auth",
+    bookings: "/api/bookings"
+  }
+}));
+
 app.get("/api/health", (req, res) => res.json({
   status: "ok",
   demoMode: process.env.DEMO_MODE === "true",
